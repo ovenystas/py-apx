@@ -60,16 +60,23 @@ def packHeader(address, more_bit=False):
 
 
 
-def packFileInfo(info, byte_order='<'):
+def packFileInfo(file, byte_order='<'):
    """packs FileInfo object into bytearray b"""
-   if info.address is None:
+   if file.address is None:
       raise ValueError('FileInfo object does not have an address')
    if (byte_order != '<') and (byte_order != '>'):
       raise ValueError('unknown byte_order: '+str(byte_order))
-   fmt='%s3I2H32s%ds'%(byte_order,len(info.name))
-   return struct.pack(fmt, RMF_CMD_FILE_INFO, info.address, info.length, info.fileType, info.digestType,
-                      info.digestData,bytes(info.name,encoding='ascii'))
+   fmt='%s3I2H32s%ds'%(byte_order,len(file.name))
+   return struct.pack(fmt, RMF_CMD_FILE_INFO, file.address, file.length, file.fileType, file.digestType,
+                      file.digestData,bytes(file.name,encoding='ascii'))
 
+class TransmitHandler(metaclass=abc.ABCMeta):
+   def getSendAvail(self,): return None
+   @abc.abstractmethod
+   def send(self, data : bytes):
+      """
+      send data bytes
+      """
 
 class File:
    """
@@ -115,6 +122,8 @@ class FileManager:
       assert(isinstance(remoteFileMap, FileMap))
       self.localFileMap = localFileMap
       self.remoteFileMap = remoteFileMap
+      self.requestedFiles = {}
+      self.transmitHandler = None
       
       def worker():
          """
@@ -124,21 +133,22 @@ class FileManager:
          """
          
          #create handlerTable using closures to self
-         handlerTable = [
-            None,       #0
-            None,       #1
-            None,       #2
-            self._FileInfo_handler #3, RMF_CMD_FILE_INFO
-            ]
+         # handlerTable = [
+         #    None,       #0
+         #    None,       #1
+         #    None,       #2
+         #    self._FileInfo_handler #3, RMF_CMD_FILE_INFO
+         #    ]
          while True:            
-            msg = self.msgQueue.get()
-            if msg is None:
+            data = self.sendQueue.get()
+            if data is None:
                break
-            if msg.id < len(handlerTable) and handlerTable[msg.id] is not None:
-               handlerTable[msg.id](msg)
-               
-            
-      self.msgQueue = queue.Queue()
+            elif isinstance(data, bytes):               
+               self._send(data)
+            else:
+               raise NotImplementedError(type(data))
+                           
+      self.sendQueue = queue.Queue()
       self.worker = threading.Thread(target=worker)
    
    def start(self):      
@@ -147,7 +157,7 @@ class FileManager:
    def stop(self):
       if self.worker is not None and self.worker.is_alive():
          #send special message None to stop the worker thread
-         self.msgQueue.put(None)
+         self.sendQueue.put(None)
          self.worker.join()
          self.worker=None
       
@@ -155,8 +165,19 @@ class FileManager:
       print("_FileInfo_handler")
    
    def attachLocalFile(self, file):
-      pass
+      self.localFileMap.insert(file)
    
    def requestRemoteFile(self, file):
-      pass
-      
+      self.requestedFiles[file.name]=file
+
+   def onConnect(self, transmitHandler):
+      """
+      called on new connection
+      """
+      self.transmitHandler = transmitHandler      
+      for file in self.localFileMap:         
+         self.sendQueue.put(packFileInfo(file))
+
+   def _send(self, msg):
+      if self.transmitHandler is not None:
+         self.transmitHandler.send(msg)
