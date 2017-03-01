@@ -186,11 +186,15 @@ class RawPort:
 class RawRequirePort(RawPort):
    def __init__(self, name, dataSignature, attributes=None):
       super().__init__('R',name, dataSignature, attributes)
+   def mirror(self):
+      return RawProvidePort(self.name, self.dsg, self.attr)
+
 
 class RawProvidePort(RawPort):
    def __init__(self, name, dataSignature, attributes=None):
       super().__init__('P',name, dataSignature, attributes)
-      
+   def mirror(self):
+      return RawRequirePort(self.name, self.dsg, self.attr)
 
 class RawDataType:
    """

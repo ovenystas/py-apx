@@ -40,7 +40,7 @@ class TcpClientConnection:
    
    def connect(self, address, port):
       self.socket.connect(('localhost', 4000))
-      self.socket.send(bytes('RMFTP/1.0\n\n',encoding='ascii'))
+      self.socket.send(bytes('RMFP/1.0\n\n',encoding='ascii'))
    
    def start(self):
       self.worker.start()

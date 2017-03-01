@@ -37,14 +37,22 @@ class Node:
    def import_swc(self, ws, swc):
       assert(isinstance(swc, autosar.component.AtomicSoftwareComponent))
       for port in swc.providePorts:
-         dataType=self._updateDataType(ws, port)
-         if dataType is not None:
-            self.providePorts.append(apx.AutosarProvidePort(port.name, dataType.id, ws, port))
+         self.add_autosar_port(ws,port)
       for port in swc.requirePorts:
+         self.add_autosar_port(ws,port)
+   
+   def add_autosar_port(self, ws, port):
+      if isinstance(port, autosar.component.RequirePort):
          dataType=self._updateDataType(ws, port)
          if dataType is not None:
             self.requirePorts.append(apx.AutosarRequirePort(port.name, dataType.id, ws, port))
-
+      elif isinstance(port, autosar.component.ProvidePort):
+         dataType=self._updateDataType(ws, port)
+         if dataType is not None:
+            self.providePorts.append(apx.AutosarProvidePort(port.name, dataType.id, ws, port))
+      else:
+         raise ValueError('invalid type '+str(type(port)))
+   
    def write(self, fp):
       """
       writes node as text in fp
