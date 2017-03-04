@@ -2,7 +2,7 @@ import remotefile
 import threading
 import abc
 
-class ApxNodeDataHandler(metaclass=abc.ABCMeta):
+class NodeDataHandler(metaclass=abc.ABCMeta):
    @abc.abstractmethod
    def inPortDataWriteNotification(self, offset: int, length, int):
       """
@@ -10,9 +10,9 @@ class ApxNodeDataHandler(metaclass=abc.ABCMeta):
       """
 
 
-class ApxFile(remotefile.File):
+class File(remotefile.File):
    """
-   This is the ApxFile class. It inherits from remotefile.File.
+   This is the apx.File class. It inherits from remotefile.File.
    
    In the C implementation this type is called apx_file_t.
    """
@@ -21,16 +21,16 @@ class ApxFile(remotefile.File):
       self.data = bytearray(length)
       self.dataLock = threading.Lock()
 
-class ApxInputFile(ApxFile):
+class InputFile(File):
    """
-   Represents input files, like nodename.in. It has the ability to notify application when ApxFileManager writes to it
+   Represents input files, like nodename.in. It has the ability to notify application when apx.FileManager writes to it
    """
    def __init__(self, name, length):
       super().__init__(name, length)
 
-class ApxOutputFile(ApxFile):
+class OutputFile(File):
    """
-   Represents an output file like nodename.out and nodename.apx. The ApxFileManager is allowed to read from it and ApxFileManager gets notifications when written to.
+   Represents an output file like nodename.out and nodename.apx. The apx.FileManager is allowed to read from it and apx.FileManager gets notifications when written to.
    """
    def __init__(self, name, length):
       super().__init__(name, length)

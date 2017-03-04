@@ -37,7 +37,7 @@ class FileMap:
         return self._items[i:j].index(file) + i
    
    def insert(self, file):
-      assert(isinstance(file, apx.ApxFile))
+      assert(isinstance(file, apx.File))
       #assign address to file
       if file.address is None:
          self._assignFileAddressDefault(file)
@@ -50,7 +50,7 @@ class FileMap:
    
    def remove(self, file):
       'Remove file from FileMap'
-      assert(isinstance(file, apx.ApxFile))       
+      assert(isinstance(file, apx.File))       
       i = self.index(file)
       del self._keys[i]
       del self._items[i]

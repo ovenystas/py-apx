@@ -1,2 +1,16 @@
+#komodo files
 *.komodoproject
-**/__pycache__
+
+# Compiled python modules.
+*.pyc
+__pycache__/
+
+# Setuptools distribution folder.
+/dist/
+/build/
+
+# Python egg metadata, regenerated from source files by setuptools.
+/*.egg-info
+
+#sphinx-doc files
+/doc/_build/

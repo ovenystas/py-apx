@@ -1,16 +1,13 @@
 import apx
-import apx.parser
-import apx.context
 
-
-@apx.ApxNodeDataHandler.register
+@apx.NodeDataHandler.register
 class NodeData():
    """
    APX NodeData class
    """
    
    def __init__(self,node):
-      parser = apx.parser.ApxParser()
+      parser = apx.Parser()
       if isinstance(node, apx.Node):         
          ctx = apx.context.Context()
          ctx.append(node)
@@ -30,29 +27,29 @@ class NodeData():
          
    def _createInPortDataFile(self, node):
       fileLen=0
-      for port in node.requirePortList:
-         packLen = port.dsg.packLen(node.typeList)
+      for port in node.requirePorts:
+         packLen = port.dsg.packLen(node.dataTypes)
          fileLen+=packLen
       if fileLen > 0:
-         file = apx.ApxInputFile(node.name+'.in', fileLen)
+         file = apx.InputFile(node.name+'.in', fileLen)
          #TODO: implement support for init values
          return file
       return None
 
    def _createOutPortDataFile(self, node):
       fileLen=0
-      for port in node.providePortList:
-         packLen = port.dsg.packLen(node.typeList)
+      for port in node.providePorts:
+         packLen = port.dsg.packLen(node.dataTypes)
          fileLen+=packLen
       if fileLen > 0:
-         file = apx.ApxOutputFile(node.name+'.out', fileLen)
+         file = apx.OutputFile(node.name+'.out', fileLen)
          #TODO: implement support for init values
          return file
       return None
 
    
    def _createDefinitionFile(self, node_name, apx_text):
-      file = apx.ApxOutputFile(node_name+'.apx', len(apx_text))      
+      file = apx.OutputFile(node_name+'.apx', len(apx_text))      
       file.write(0,bytes(apx_text, encoding='ascii'))
       return file
       

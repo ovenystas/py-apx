@@ -1,7 +1,7 @@
 import apx
 import remotefile
 
-class ApxFileManager(remotefile.FileManager):
+class FileManager(remotefile.FileManager):
    def __init__(self):
       super().__init__(apx.FileMap(), apx.FileMap())
    
