@@ -105,6 +105,7 @@ class DataSignature:
          self.data=signature
          self.str=dsg
          self.parent=parent
+         self.structFormatStr=self._deriveStructFormatString(signature)
       else:
          raise NotImplementedError(type(dsg))
       
@@ -250,7 +251,10 @@ class DataSignature:
          else:
             remain=remain[1:]
             return ({'type':c,'isArray':False},remain)         
-         
+   
+   def _deriveStructFormatString(self, signature):
+      return None
+   
 class PortAttribute:
    """
    Port attributes are attributes declared on a line starting with either 'R' or 'P'

@@ -94,6 +94,8 @@ class TestNode(unittest.TestCase):
       self.assertEqual(lines[4],'P"FuelLevel"C')
       self.assertEqual(lines[5],'P"ParkBrakeActive"T[0]:=3')
       self.assertEqual(lines[6],'R"RheostatLevelRqst"C:=255')
+      port = node.providePorts[0]
+      self.assertEqual(port.dsg.structFormatStr, None)
       
    
 if __name__ == '__main__':

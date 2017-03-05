@@ -57,16 +57,17 @@ class FileMap:
    
    def findByAddress(self, address):
         'finds file based on address'
-        i = bisect_left(self._keys, k)
-        if i != len(self) and self._keys[i] == k:
+        i = bisect_left(self._keys, address)
+        if i != len(self) and self._keys[i] == address:
             return self._items[i]
-        raise ValueError('No item found with key equal to: %r' % (k,))
+        return None
       
    def findByName(self, name):
       'finds file based on its file name'
       for file in self._items:
          if file.name == name:
             return file
+         return None
    
    def _assignFileAddressDefault(self, file):
       """

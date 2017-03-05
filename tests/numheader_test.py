@@ -93,27 +93,32 @@ class TestNumHeader(unittest.TestCase):
          numheader.encode32(2147483648)
 
    def test_decode32(self):
-      data = bytearray([0])
-      bytesParsed,value=numheader.decode32(data)
+      data = b"\x00"
+      bytesParsed,value=numheader.decode32(data,0)
       self.assertEqual( bytesParsed, 1)
       self.assertEqual( value, 0)
 
-      data = bytearray([127])
-      bytesParsed,value=numheader.decode32(data)
+      data = b"\x7F"
+      bytesParsed,value=numheader.decode32(data,0)
       self.assertEqual( bytesParsed, 1)
       self.assertEqual( value, 127)
    
-      data = bytearray([0x80,0x80])
-      bytesParsed,value=numheader.decode32(data)
+      data = b"\x80\x80"
+      bytesParsed,value=numheader.decode32(data,0)
       self.assertEqual( bytesParsed, 0)      
 
-      data = bytearray([0x80,0x00, 0x00,0x80])
-      bytesParsed,value=numheader.decode32(data)
+      data = b"\x80\x00\x00\x80"
+      bytesParsed,value=numheader.decode32(data,0)
       self.assertEqual( bytesParsed, 4)
       self.assertEqual( value, 128)
 
-      data = bytearray([0xFF,0xFF,0xFF,0xFF])
-      bytesParsed,value=numheader.decode32(data)
+      data = b"\xFF\xFF\xFF\xFF"
+      bytesParsed,value=numheader.decode32(data,0)
+      self.assertEqual( bytesParsed, 4)
+      self.assertEqual( value, 2147483647)
+      
+      data = b"\x00\x00\xFF\xFF\xFF\xFF"
+      bytesParsed,value=numheader.decode32(data,2)
       self.assertEqual( bytesParsed, 4)
       self.assertEqual( value, 2147483647)
 

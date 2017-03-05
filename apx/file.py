@@ -1,12 +1,18 @@
 import remotefile
 import threading
 import abc
+import sys
 
 class NodeDataHandler(metaclass=abc.ABCMeta):
    @abc.abstractmethod
-   def inPortDataWriteNotification(self, offset: int, length, int):
+   def inPortDataWriteNotify(self, file, offset : int, data : bytes):
       """
       Notification called when inPortDataFile has been written to (from ApxFileManager)
+      """
+   @abc.abstractmethod
+   def inPortDataOpen(self, file):
+      """
+      Called when APX server has requested to open the nodes input file
       """
 
 
@@ -20,31 +26,64 @@ class File(remotefile.File):
       super().__init__(name, length)
       self.data = bytearray(length)
       self.dataLock = threading.Lock()
-
-class InputFile(File):
-   """
-   Represents input files, like nodename.in. It has the ability to notify application when apx.FileManager writes to it
-   """
-   def __init__(self, name, length):
-      super().__init__(name, length)
-
-class OutputFile(File):
-   """
-   Represents an output file like nodename.out and nodename.apx. The apx.FileManager is allowed to read from it and apx.FileManager gets notifications when written to.
-   """
-   def __init__(self, name, length):
-      super().__init__(name, length)
       self.fileManager = None
 
+   def read(self, offset: int, length: int):
+      """
+      reads data from the given offset, returns bytes array or None in case of error
+      """
+      if(offset < 0) or (offset+length>len(self.data) ):
+         print('file read outside file boundary detected, file=%s, off=%d, len=%d'%(self.name, offset, len(data)),file=sys.stderr)
+         return None
+      self.dataLock.acquire()
+      retval = bytes(self.data[offset:offset+length])
+      self.dataLock.release()
+      return retval
+      
+   
    def write(self, offset: int, data: bytes):
       """
       writes data at the given offset in the file
+      returns number of bytes written or -1 on error
       """
       if(offset < 0) or (offset+len(data)>len(self.data) ):
-         raise IndexError('file write outside file boundary detected')
+         print('file write outside file boundary detected, file=%s, off=%d, len=%d'%(self.name, offset, len(data)),file=sys.stderr)
+         return -1
       self.dataLock.acquire()
       self.data[offset:offset+len(data)]=data
       self.dataLock.release()
-      if self.fileManager is not None:
-         self.fileManager.outPortDataWriteNotificaion(offset, len(data))
+      return len(data)
+      
+
+class InputFile(File):
+   """
+   An APX input file. when written to, it notifies the upper layer (NodeDataHandler) about the change
+   """
+   def __init__(self, name, length):
+      super().__init__(name, length)
+      self.nodeDataHandler=None
+   
+   def write(self, offset: int, data: bytes, more_bit : bool):      
+      retval = super().write(offset, data)
+      if (retval>=0) and (more_bit == False):
+         if self.nodeDataHandler is not None:
+            self.nodeDataHandler.inPortDataWriteNotify(self, offset, data)
+         else:
+            print("write to InputFile %s, off=%d, len=%d"%(file.name, offset, len(bytes)))
+      return retval
+         
+
+class OutputFile(File):
+   """
+   An APX output file. when written to, it notifies the lower layer (FileManager) about the change
+   """
+   def __init__(self, name, length):
+      super().__init__(name, length)
+      
+      
+   def write(self, offset: int, data: bytes):
+      retval = super().write(offset, data)
+      if (retval >=0) and (self.fileManager is not None) and (file.isOpen==True):
+         self.fileManager.outPortDataWriteNotify(self, offset, len(data))
+      return retval
       
