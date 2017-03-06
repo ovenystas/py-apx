@@ -103,7 +103,7 @@ class NodeGenerator:
                elif isinstance(val,str):
                   childName="%s.%s"%(valname,elem['name'])
                assert(elem is not None)
-               itemLen=genPackUnpackItem(code, buf, operation, childName, apx.ApxDataSignature(elem), localvar, offset, indent, indentStep)
+               itemLen=self.genPackUnpackItem(code, buf, operation, childName, apx.DataSignature(elem), localvar, offset, indent, indentStep)
                offset+=itemLen
                packLen+=itemLen
          elif dsg.isArray():      
@@ -177,7 +177,7 @@ class NodeGenerator:
       headerFile.code.extend(_genCommentHeader('CONSTANTS'))
       
       shortDefines=[]
-      for port in node.requirePortList:
+      for port in node.requirePorts:
          tmp = (['APX',self.name.upper(), 'OFFSET',port.name.upper()])
          if self.name.upper().startswith('APX'):
             del tmp[0]  
@@ -355,13 +355,13 @@ class NodeGenerator:
       self.name=name
       self.includes=includes
       #require ports (in ports)
-      for port in node.requirePortList:
+      for port in node.requirePorts:
          is_pointer=False        
          func = C.function("%s_Read_%s"%(name,port.name),"Std_ReturnType")
          is_pointer=True
-         func.add_arg(C.variable('val',port.dsg.typename(node.typeList),pointer=is_pointer))         
-         packLen=port.dsg.packLen(node.typeList)
-         port.dsg.typeList= node.typeList
+         func.add_arg(C.variable('val',port.dsg.ctypename(node.dataTypes),pointer=is_pointer))         
+         packLen=port.dsg.packLen(node.dataTypes)
+         port.dsg.typeList= node.dataTypes
          tmp = SignalInfo(offset,packLen,func,port.dsg,'unpack', 0) #TODO: implement init value
          signalInfo.append(tmp)
          signalInfoMap[port.name]=tmp
@@ -369,14 +369,14 @@ class NodeGenerator:
          offset+=packLen
       #provide ports (out ports)
       offset=0      
-      for port in node.providePortList:
+      for port in node.providePorts:
          is_pointer=False        
          func = C.function("%s_Write_%s"%(name,port.name),"Std_ReturnType")
-         if port.dsg.isComplexType(node.typeList) and not port.dsg.isArray(node.typeList):
+         if port.dsg.isComplexType(node.dataTypes) and not port.dsg.isArray(node.dataTypes):
             is_pointer=True    
-         func.add_arg(C.variable('val',port.dsg.typename(node.typeList),pointer=is_pointer))         
-         packLen=port.dsg.packLen(node.typeList)
-         port.dsg.typeList= node.typeList
+         func.add_arg(C.variable('val',port.dsg.ctypename(node.dataTypes),pointer=is_pointer))         
+         packLen=port.dsg.packLen(node.dataTypes)
+         port.dsg.typeList= node.dataTypes
          tmp = SignalInfo(offset,packLen,func,port.dsg,'pack',0)
          signalInfo.append(tmp) #TODO: implement init value
          signalInfoMap[port.name]=tmp

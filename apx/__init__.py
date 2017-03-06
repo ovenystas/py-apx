@@ -7,5 +7,6 @@ from apx.node_data import *
 from apx.parser import Parser
 from apx.context import Context
 from apx.client import *
+from apx.generator import NodeGenerator
    
 

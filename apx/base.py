@@ -65,7 +65,7 @@ class RequirePort(Port):
    def __init__(self, name, dataSignature, attributes=None):
       super().__init__('R',name, dataSignature, attributes)
    def mirror(self):
-      return ProvidePort(self.name, self.dsg, self.attr)
+      return ProvidePort(self.name, str(self.dsg), str(self.attr))
 
 
 class ProvidePort(Port):
@@ -75,7 +75,7 @@ class ProvidePort(Port):
    def __init__(self, name, dataSignature, attributes=None):
       super().__init__('P',name, dataSignature, attributes)
    def mirror(self):
-      return RequirePort(self.name, self.dsg, self.attr)
+      return RequirePort(self.name, str(self.dsg), str(self.attr))
 
      
 class DataType:
@@ -104,13 +104,16 @@ class DataSignature:
             raise Exception("string '%s' not fully parsed"%dsg)
          self.data=signature
          self.str=dsg
-         self.parent=parent
-         self.structFmtStr=None
-         self._conversionTable={'a':'s', 'c':'b', 's':'h','l':'I', #conversion table from APX type codes into python struct format characters
+      elif isinstance(dsg, dict):
+         self.data=dsg
+         self.str=None
+      else:         
+         raise NotImplementedError(type(dsg))
+      self.parent=parent
+      self.structFmtStr=None
+      self._conversionTable={'a':'s', 'c':'b', 's':'h','l':'I', #conversion table from APX type codes into python struct format characters
                                 'u':'q', 'C':'B', 'S':'H','L':'I',
                                 'U':'Q'}
-      else:
-         raise NotImplementedError(type(dsg))
       
    def __str__(self):
       return self.str

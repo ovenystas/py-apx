@@ -58,7 +58,7 @@ def _calcIntTypeLen(dataType):
    return None
 
 class Node:
-   def __init__(self,name):
+   def __init__(self,name=None):
       self.name=name
       self.dataTypes = []
       self.requirePorts=[]
@@ -105,10 +105,10 @@ class Node:
       elif isinstance(item,autosar.constant.StringValue):
             return '="%s"'%item.value
       elif isinstance(item,autosar.constant.RecordValue):
-         tmp = [self._deriveInitValue(x) for x in item.elements]
+         tmp = [self._deriveInitValueFromAutosarConstant(x) for x in item.elements]
          return "{"+','.join(tmp)+"}"
       elif isinstance(item,autosar.constant.ArrayValue):
-         tmp = [self._deriveInitValue(x) for x in item.elements]
+         tmp = [self._deriveInitValueFromAutosarConstant(x) for x in item.elements]
          return "{"+','.join(tmp)+"}"
       else:
          raise NotImplementedError(str(type(item)))
@@ -116,6 +116,7 @@ class Node:
    
    def import_autosar_swc(self, swc, ws=None):
       assert(isinstance(swc, autosar.component.AtomicSoftwareComponent))
+      self.name=swc.name
       for port in swc.providePorts:
          self.add_autosar_port(port, ws)
       for port in swc.requirePorts:
