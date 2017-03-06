@@ -27,8 +27,8 @@ setup(name='apx',
 	  install_requires=[
 		  'autosar>=0.3.0'
       ],
-      packages=['apx'],
-      py_modules=['remotefile','numheader'],
+      packages=['apx','remotefile'],
+      py_modules=['numheader'],
 	  test_suite = 'tests',
 	  dependency_links=['https://github.com/cogu/autosar/archive/v0.3.0.tar.gz#egg=autosar-0.3.0'],
 	  zip_safe=False)
