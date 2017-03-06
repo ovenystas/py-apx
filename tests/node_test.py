@@ -85,8 +85,10 @@ class TestNode(unittest.TestCase):
       node.providePorts.append(apx.ProvidePort('FuelLevel','C'))
       node.providePorts.append(apx.ProvidePort('ParkBrakeActive','T[0]','=3'))
       node.requirePorts.append(apx.RequirePort('RheostatLevelRqst','C','=255'))
+      node.requirePorts.append(apx.RequirePort('StrSignal','a[4]','=""'))
+      node.requirePorts.append(apx.RequirePort('RecordSignal','{"Name"a[8]"Id"L"Data"S[3]}','={"",0xFFFFFFFF,{0,0,0}}'))
       lines=node.lines()
-      self.assertEqual(len(lines), 7)
+      self.assertEqual(len(lines), 9)
       self.assertEqual(lines[0],'N"TestSWC"')
       self.assertEqual(lines[1],'T"InactiveActive_T"C(0,3)')
       self.assertEqual(lines[2],'P"VehicleSpeed"S:=65535')
@@ -94,8 +96,15 @@ class TestNode(unittest.TestCase):
       self.assertEqual(lines[4],'P"FuelLevel"C')
       self.assertEqual(lines[5],'P"ParkBrakeActive"T[0]:=3')
       self.assertEqual(lines[6],'R"RheostatLevelRqst"C:=255')
-      port = node.providePorts[0]
-      self.assertEqual(port.dsg.structFormatStr, None)
+      self.assertEqual(lines[7],'R"StrSignal"a[4]:=""')
+      self.assertEqual(lines[8],'R"RecordSignal"{"Name"a[8]"Id"L"Data"S[3]}:={"",0xFFFFFFFF,{0,0,0}}')
+      self.assertEqual(node.providePorts[0].dsg.calcStructFmtStr(node.dataTypes), '<H') #unsigned short
+      self.assertEqual(node.providePorts[1].dsg.calcStructFmtStr(node.dataTypes), '<B') #unsigned char
+      self.assertEqual(node.providePorts[2].dsg.calcStructFmtStr(node.dataTypes), '<B') #unsigned char
+      self.assertEqual(node.providePorts[3].dsg.calcStructFmtStr(node.dataTypes), '<B') #unsigned char      
+      self.assertEqual(node.requirePorts[0].dsg.calcStructFmtStr(node.dataTypes), '<B') #unsigned char
+      self.assertEqual(node.requirePorts[1].dsg.calcStructFmtStr(node.dataTypes), '<4s') #char[4]
+      self.assertEqual(node.requirePorts[2].dsg.calcStructFmtStr(node.dataTypes), '<8sI3H') #char[8],unsigned int, unsigned short[3]
       
    
 if __name__ == '__main__':

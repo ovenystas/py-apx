@@ -3,19 +3,25 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 import apx
 import time
 
-node = apx.Node('TestNode')
-node.dataTypes.append(apx.DataType('InactiveActive_T','C(0,3)'))
-node.requirePorts.append(apx.RequirePort('VehicleSpeed','S','=65535'))
-node.requirePorts.append(apx.RequirePort('MainBeam','T[0]','=3'))
-node.requirePorts.append(apx.RequirePort('FuelLevel','C'))
-node.requirePorts.append(apx.RequirePort('ParkBrakeActive','T[0]','=3'))
-node.providePorts.append(apx.ProvidePort('RheostatLevelRqst','C','=255'))
+@apx.DataListener.register
+class MyDataListener(apx.DataListener):
+   global client
+   def on_data(self, port, value):
+      print("%s: %s"%(port.name,str(value)))
+      if port.name=='TestSignal1':
+         client.write_port('TestSignal2', value*2) #just return whatever is on TestSignal1 multiplied by 2      
+         
+      
+node = apx.Node('TestNode2')
+node.append(apx.RequirePort('TestSignal1','S'))
+node.append(apx.ProvidePort('TestSignal2','S'))
      
 client = apx.Client(node)
+client.set_listener(MyDataListener())
 if client.connectTcp('localhost', 5000):
    while True:
       try:
-         time.sleep(500)
+         time.sleep(1)
       except (KeyboardInterrupt, SystemExit):
          break
 client.stop()

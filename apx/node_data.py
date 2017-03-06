@@ -1,5 +1,6 @@
 import apx
 import abc
+import struct
 from collections import namedtuple
 
 PortMapRange = namedtuple('PortMapRange', "startOffset endOffset port")
@@ -46,6 +47,7 @@ class NodeData():
       offset=0
       for port in node.requirePorts:
          packLen = port.dsg.packLen(node.dataTypes)
+         port.dsg.calcStructFmtStr(node.dataTypes)
          self.inPortDataMap.append(PortMapRange(offset, offset+packLen, port))
          offset+=packLen
       fileLen=offset
@@ -59,6 +61,7 @@ class NodeData():
       offset=0
       for port in node.providePorts:
          packLen = port.dsg.packLen(node.dataTypes)
+         port.dsg.calcStructFmtStr(node.dataTypes)
          self.outPortDataMap.append(PortMapRange(offset, offset+packLen, port))
          offset+=packLen
       fileLen=offset
@@ -77,19 +80,53 @@ class NodeData():
    def inPortDataWriteNotify(self, file, offset: int, data : bytes):
       """
       Called by FileManager when it receives a remote write in the node's inPortData file
-      """
-      endOffset=offset+len(data)
-      while offset<endOffset:
-         found=False
-         for elem in self.inPortDataMap:
-            if elem.startOffset <= offset < elem.endOffset:
-               print(elem.port.name)
-               offset=elem.endOffset
-               found=True
+      """      
+      if self.nodeDataClient is not None:
+         startOffset=offset
+         endOffset=offset+len(data)
+         while offset<endOffset:
+            found=False
+            for elem in self.inPortDataMap:
+               if elem.startOffset <= offset < elem.endOffset:                  
+                  offset=elem.endOffset
+                  found=True
+                  value = self._unpackRequirePort(elem.port, data[elem.startOffset-startOffset:elem.endOffset-startOffset])
+                  self.nodeDataClient.onRequirePortData(self, elem.port, value)
+                  break
+            if found == False:
                break
-         if found == False:
-            break
          
-         
+   def writeProvidePort(self, portId, value):
+      port = self.node.providePorts[portId]
+      portMapElem = self.outPortDataMap[portId]
+      dsg = port.dsg.resolveType(self.node.dataTypes)
+      assert(dsg.structFmtStr is not None and len(dsg.structFmtStr)>0)
+      if dsg.data['type'] == 'record':
+         if not isinstance(value, abc.Mapping):
+            raise ValueError('value must be a dictionary or other mappable type')
+         raise NotImplementedError('record')
+      if dsg.data['isArray']:
+         if not isinstance(value, abc.Iterable):
+            raise ValueError('value must be iterable')
+         raise NotImplementedError('array')
+      else:
+         assert(len(dsg.structFmtStr)==2)
+         data = struct.pack(dsg.structFmtStr,value)
+         self.outPortDataFile.write(portMapElem.startOffset, data)      
    
+   def _unpackRequirePort(self, port, data):            
+      assert(port.dsg.structFmtStr is not None and len(port.dsg.structFmtStr)>0)
+      dsg = port.dsg.resolveType(self.node.dataTypes)
+      if dsg.data['type'] == 'record':
+         if not isinstance(value, abc.Mapping):
+            raise ValueError('value must be a dictionary or other mappable type')
+         raise NotImplementedError('record')
+      if dsg.data['isArray']:
+         if not isinstance(value, abc.Iterable):
+            raise ValueError('value must be iterable')
+         raise NotImplementedError('array')
+      else:
+         assert(len(port.dsg.structFmtStr)==2)
+         (value,) = struct.unpack(port.dsg.structFmtStr,data)
+         return value
       

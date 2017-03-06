@@ -132,15 +132,22 @@ class Node:
       if dataType is not None:         
          if isinstance(port, autosar.component.RequirePort):
             apx_port = apx.RequirePort(port.name, "T[%s]"%dataType.id, self._calcAttributeFromAutosarPort(ws, port))
-            self.requirePorts.append(apx_port)
+            self.requirePorts.append(apx_port)            
          elif isinstance(port, autosar.component.ProvidePort):
             apx_port = apx.ProvidePort(port.name, "T[%s]"%dataType.id, self._calcAttributeFromAutosarPort(ws, port))
-            self.providePorts.append(apx_port)
+            self.providePorts.append(apx_port)            
          else:
             raise ValueError('invalid type '+str(type(port)))
    
-   def add_require_port(self, name, dsg, attr=None):
-      pass
+   def append(self, port):
+      if isinstance(port, apx.RequirePort):
+         self.requirePorts.append(port)
+      elif isinstance(port, apx.ProvidePort):
+         self.providePorts.append(port)
+      elif isinstance(port, autosar.component.port):
+         self.add_autosar_port(port)
+      else:
+         raise ValueError(type(port))
   
   
    def add_type(self, dataType):
@@ -185,7 +192,7 @@ class Node:
       for dataType in mirror.dataTypes:
          mirror.dataTypeMap[dataType.name]=dataType
       return mirror
-      
+   
    
 class AutosarPort:
    """

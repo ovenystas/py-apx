@@ -278,8 +278,7 @@ class FileManager:
    #ReceiveHandler API
    def onMsgReceived(self, msg):
       bytes_parsed,address,more_bit = unpackHeader(msg)      
-      if bytes_parsed>0:
-         print("address=0x%08x"%address)
+      if bytes_parsed>0:         
          if address==RMF_CMD_START_ADDR:
             self._processCmd(msg[bytes_parsed:])
          elif address<RMF_CMD_START_ADDR:
@@ -347,8 +346,12 @@ class FileManager:
          if (offset>=0) and (offset+len(data)<=remoteFile.length):
             remoteFile.write(offset, data, more_bit)
    
-   def outPortDataWriteNotify(file: File, offset : int, length : int):
-      print("FileManager.outPortDataWriteNotify, off=%d, len=%d"%(offset,length))
+   def outPortDataWriteNotify(self, file: File, offset : int, length : int):
+      assert(file.address is not None)
+      fileContent=file.read(offset, length)
+      if fileContent is not None:
+         msg=(RMF_MSG_WRITE_DATA,file.address, fileContent)
+         self.msgQueue.put(msg)
    
 from remotefile.socket_adapter import TcpSocketAdapter
 from remotefile.proto import readLine

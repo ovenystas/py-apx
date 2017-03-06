@@ -14,12 +14,14 @@ class Client:
    """
    APX Client class for a single APX node
    """
-   def __init__(self, node=None):      
+   def __init__(self, node=None):
+      self.providePortMap = None
       self.fileManager=apx.FileManager()
       self.socketAdapter=remotefile.TcpSocketAdapter()
       self.attachLocalNode(node)
       self.fileManager.start()
       self.dataListener=None
+      
       
    
    def attachLocalNode(self, node):
@@ -35,7 +37,11 @@ class Client:
             self.fileManager.attachLocalFile(outPortDataFile)
          if definitionDataFile is not None:
             self.fileManager.attachLocalFile(definitionDataFile)
-         self.nodeData.nodeDataClient=self
+         self.nodeData.nodeDataClient=self         
+         self.providePortMap={}         
+         for i,port in enumerate(self.node.providePorts):
+            self.providePortMap[port.name]=i
+            
    
    
    def createLocalNode(self, apxText):
@@ -63,3 +69,12 @@ class Client:
    def onRequirePortData(self, node, port, data):
       if self.dataListener:
          self.dataListener.on_data(port, data)
+   
+   def write_port(self, identifier, value):
+      if isinstance(identifier, str):
+         portId = self.providePortMap[identifier]         
+      elif isinstance(identifier, int):
+         portId = identifier
+      else:
+         raise ValueError(identifier)
+      self.nodeData.writeProvidePort(portId, value)

@@ -6,7 +6,12 @@ import time
 @apx.DataListener.register
 class MyDataListener(apx.DataListener):
    def on_data(self, port, data):
-      print("%s: %s"%(port.name, str(data)))      
+      global value
+      global client
+      print("%s: %s"%(port.name, str(data)))
+      if port.name=='TestSignal2' and value is not None:
+         value = (value + 1) & 0x3FFF #wraparound to zero after 16383
+         client.write_port('TestSignal1', value)
 
 if __name__ == '__main__':
    node = apx.Node('TestNode1')
@@ -19,10 +24,11 @@ if __name__ == '__main__':
    if client.connectTcp('localhost', 5000):
       while True:
          try:         
-            time.sleep(1)
-            value = (value + 1) & 0x3FFF #wraparound to zero after 16383
-            client.write_port('TestSignal1', value)
+            time.sleep(10)            
+            break
          except (KeyboardInterrupt, SystemExit):
             break
+   value=None
+   time.sleep(0.2)
    client.stop()
    

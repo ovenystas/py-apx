@@ -83,7 +83,7 @@ class OutputFile(File):
       
    def write(self, offset: int, data: bytes):
       retval = super().write(offset, data)
-      if (retval >=0) and (self.fileManager is not None) and (file.isOpen==True):
+      if (retval >=0) and (self.fileManager is not None) and (self.isOpen==True):
          self.fileManager.outPortDataWriteNotify(self, offset, len(data))
       return retval
       

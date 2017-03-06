@@ -105,7 +105,10 @@ class DataSignature:
          self.data=signature
          self.str=dsg
          self.parent=parent
-         self.structFormatStr=self._deriveStructFormatString(signature)
+         self.structFmtStr=None
+         self._conversionTable={'a':'s', 'c':'b', 's':'h','l':'I', #conversion table from APX type codes into python struct format characters
+                                'u':'q', 'C':'B', 'S':'H','L':'I',
+                                'U':'Q'}
       else:
          raise NotImplementedError(type(dsg))
       
@@ -204,7 +207,7 @@ class DataSignature:
       while len(remain)>0:
          (name,remain)=match_pair(remain,'"','"')
          if len(remain)>0:            
-            (elem,remain)=ApxDataSignature._parseDataSignature(remain)
+            (elem,remain)=DataSignature._parseDataSignature(remain)
             if elem == None:
                if remain[0] == '}':
                   return {'type':'record','elements':elements,'isArray':False},remain[1:]
@@ -229,7 +232,7 @@ class DataSignature:
       c=remain[0]      
       if c=='{': #start of record 
          remain = remain[1:]
-         return ApxDataSignature._parseRecordSignature(remain)      
+         return DataSignature._parseRecordSignature(remain)      
       if c=='T': #typeRef         
          (data,remain2)=match_pair(remain[1:],'[',']')
          if data!=None and len(remain2)==0:            
@@ -252,8 +255,45 @@ class DataSignature:
             remain=remain[1:]
             return ({'type':c,'isArray':False},remain)         
    
-   def _deriveStructFormatString(self, signature):
-      return None
+   def calcStructFmtStr(self, typeList=None, byteOrder='<'):
+      """
+      returns python struct format string
+      """
+      result= []
+      stack = []      
+      i = iter([self.data])
+      while True:
+         try:
+            elem = next(i)
+         except StopIteration:
+            try:
+               i = stack.pop()
+               continue
+            except IndexError:
+               break
+         if elem['type']=='record':
+            stack.append(i)
+            i=iter(elem['elements'])
+         else:
+            fmt=self._deriveStructFormatStringElem(elem,typeList)
+            result.append(fmt)         
+      self.structFmtStr=byteOrder+''.join(result)
+      return self.structFmtStr
+   
+   def _deriveStructFormatStringElem(self, elem, typeList=None):
+      if elem['type'] in self._conversionTable:
+         formatCharacter=self._conversionTable[elem['type']]
+      elif elem['type']=='typeRef':
+         if not isinstance(typeList,list):
+            raise ValueError("typeList must be of type list")
+         dataType=typeList[self.data['refId']]
+         return self._deriveStructFormatStringElem(dataType.dsg.data,typeList)
+      else:
+         raise NotImplementedError(elem['type'])
+      if elem['isArray']:
+         return "%d%s"%(elem['arrayLen'],formatCharacter)
+      else:      
+         return formatCharacter
    
 class PortAttribute:
    """
