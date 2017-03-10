@@ -56,11 +56,20 @@ class FileMap:
       del self._items[i]
    
    def findByAddress(self, address):
-        'finds file based on address'
-        i = bisect_left(self._keys, address)
-        if i != len(self) and self._keys[i] == address:
+      'finds file based on address'
+      if len(self._keys)==0:
+         return None
+      i = bisect_left(self._keys, address)      
+      if i<len(self._items):
+         item = self._items[i]
+         if address>=item.address and address < item.address+item.length:
             return self._items[i]
-        return None
+      if i>0: #test previous element if it exists
+         i-=1
+         item = self._items[i]
+         if address>=item.address and address < item.address+item.length:
+            return self._items[i]         
+      return None
       
    def findByName(self, name):
       'finds file based on its file name'

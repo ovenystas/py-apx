@@ -5,8 +5,8 @@ import time
 
 @apx.DataListener.register
 class MyDataListener(apx.DataListener):
-   def on_data(self, port, data):
-      print("%s: %s"%(port.name, str(data)))      
+    def on_data(self, port_id, port_name, data):
+      print("%s: %s"%(port_name, str(data)))
 
 if __name__ == '__main__':
    node = apx.Node('TestNode1')

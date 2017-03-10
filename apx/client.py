@@ -4,7 +4,7 @@ import abc
 
 class DataListener(metaclass=abc.ABCMeta):
    @abc.abstractmethod
-   def on_data(self, port, data):
+   def on_data(self, port_id, port_name, data):
       """
       called by apx.client when a require port has updated its data
       """
@@ -18,8 +18,7 @@ class Client:
       self.providePortMap = None
       self.fileManager=apx.FileManager()
       self.socketAdapter=remotefile.TcpSocketAdapter()
-      self.attachLocalNode(node)
-      self.fileManager.start()
+      self.attachLocalNode(node)      
       self.dataListener=None
       
       
@@ -41,6 +40,7 @@ class Client:
          self.providePortMap={}         
          for i,port in enumerate(self.node.providePorts):
             self.providePortMap[port.name]=i
+         self.fileManager.start()
             
    
    
@@ -66,9 +66,9 @@ class Client:
    def set_listener(self, dataListener):
       self.dataListener=dataListener
 
-   def onRequirePortData(self, node, port, data):
+   def onRequirePortData(self, node, portId, portName, data):
       if self.dataListener:
-         self.dataListener.on_data(port, data)
+         self.dataListener.on_data(portId,portName, data)
    
    def write_port(self, identifier, value):
       if isinstance(identifier, str):

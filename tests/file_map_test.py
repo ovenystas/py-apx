@@ -123,8 +123,32 @@ class TestFileMap(unittest.TestCase):
       self.assertEqual(file_map[6].address,apx.USER_DATA_START)
       self.assertEqual(file_map[7].address,apx.USER_DATA_START+apx.USER_DATA_BOUNDARY)
 
-
-
+   
+   def test_findByAddress(self):
+      file_map = apx.FileMap()
+      f1 = apx.File('test1.out',5)
+      file_map.insert(f1)
+      f2 = apx.File('test1.apx',32)
+      file_map.insert(f2)
+      f3 = apx.File('test2.out',5)
+      file_map.insert(f3)
+      f4 = apx.File('test2.apx',20)
+      file_map.insert(f4)
+      self.assertEqual(f1.address,0)
+      self.assertEqual(f2.address,apx.DEFINITION_START)
+      self.assertEqual(f3.address,apx.PORT_DATA_BOUNDARY)
+      self.assertEqual(f4.address,apx.DEFINITION_START+apx.DEFINITION_BOUNDARY)
+      for file in [f1,f2,f3,f4]:
+         #test that every valid byte in the file will return the file when searched
+         for i in range(file.address,file.address+file.length):            
+            found = file_map.findByAddress(i)
+            self.assertIsNotNone(found)
+            self.assertIs(found,file)
+         #test that the byte after i returns None
+         i+=1         
+         found = file_map.findByAddress(i)
+         self.assertIsNone(found)
+   
 if __name__ == '__main__':
     unittest.main()   
 

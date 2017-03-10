@@ -7,7 +7,7 @@ PortMapRange = namedtuple('PortMapRange', "startOffset endOffset port")
 
 class NodeDataClient(metaclass=abc.ABCMeta):
    @abc.abstractmethod   
-   def onRequirePortData(self, node, port, data):
+   def onRequirePortData(self, node, portId, portName, data):
       """
       called by apx.NodeData when a require port has updated its data
       """
@@ -86,12 +86,12 @@ class NodeData():
          endOffset=offset+len(data)
          while offset<endOffset:
             found=False
-            for elem in self.inPortDataMap:
+            for portId,elem in enumerate(self.inPortDataMap):
                if elem.startOffset <= offset < elem.endOffset:                  
                   offset=elem.endOffset
                   found=True
                   value = self._unpackRequirePort(elem.port, data[elem.startOffset-startOffset:elem.endOffset-startOffset])
-                  self.nodeDataClient.onRequirePortData(self, elem.port, value)
+                  self.nodeDataClient.onRequirePortData(self, portId, elem.port.name, value)
                   break
             if found == False:
                break

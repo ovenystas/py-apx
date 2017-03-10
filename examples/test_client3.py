@@ -5,12 +5,12 @@ import time
 
 @apx.DataListener.register
 class MyDataListener(apx.DataListener):
-   def on_data(self, port, data):
+   def on_data(self, port_id, port_name, data):
       global value
       global client
-      print("%s: %s"%(port.name, str(data)))
-      if port.name=='TestSignal2' and value is not None:
-         value = (value + 1) & 0x3FFF #wraparound to zero after 16383
+      print("%s: %s"%(port_name, str(data)))
+      if port_name=='TestSignal2' and value is not None:
+         value = (value + 1) & 0xFFFF #wraparound to zero after 65535
          client.write_port('TestSignal1', value)
 
 if __name__ == '__main__':

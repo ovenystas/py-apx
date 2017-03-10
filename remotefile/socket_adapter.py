@@ -12,7 +12,7 @@ class TcpSocketAdapter:
    def __init__(self):
       self.isConnected=False
       self.isAlive=False
-      self.receiveHandler=None
+      self.receiveHandler=None #a receiveHandler is a class implementing the remotefile.ReceiveHandler interface. One example is remotefile.FileManager
       self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
       self.isGreetingParsed = False
       def worker():
@@ -25,7 +25,7 @@ class TcpSocketAdapter:
                chunk = self.socket.recv(2048)
                if len(chunk)==0:                  
                   break
-               else:
+               else:                  
                   unprocessed+=chunk                  
                   result = self._parseData(unprocessed)
                   #_parse data will return how many bytes was parse or -1 on error

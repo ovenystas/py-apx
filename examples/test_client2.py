@@ -6,10 +6,10 @@ import time
 @apx.DataListener.register
 class MyDataListener(apx.DataListener):
    global client
-   def on_data(self, port, value):
-      print("%s: %s"%(port.name,str(value)))
-      if port.name=='TestSignal1':
-         client.write_port('TestSignal2', value*2) #just return whatever is on TestSignal1 multiplied by 2      
+   def on_data(self, port_id, port_name, value):
+      print("%s: %s"%(port_name,str(value)))
+      if port_name=='TestSignal1':
+         client.write_port('TestSignal2', value) #just return whatever is on TestSignal1 multiplied by 2      
          
       
 node = apx.Node('TestNode2')

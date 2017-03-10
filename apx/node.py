@@ -2,6 +2,7 @@ import autosar
 import apx
 import math
 from copy import deepcopy
+from apx.parser import apx_split_line
 
 def _getIntegerTypeCode(dataType):
    """
@@ -125,6 +126,7 @@ class Node:
    def add_autosar_port(self, port, ws=None):
       """
       adds an autosar port to the node
+      returns the port ID of the newly added port
       """
       if ws is None:
          ws=port.rootWS()
@@ -133,20 +135,47 @@ class Node:
       if dataType is not None:         
          if isinstance(port, autosar.component.RequirePort):
             apx_port = apx.RequirePort(port.name, "T[%s]"%dataType.id, self._calcAttributeFromAutosarPort(ws, port))
-            self.requirePorts.append(apx_port)            
+            self.requirePorts.append(apx_port)
+            return len(self.requirePorts)-1
          elif isinstance(port, autosar.component.ProvidePort):
             apx_port = apx.ProvidePort(port.name, "T[%s]"%dataType.id, self._calcAttributeFromAutosarPort(ws, port))
-            self.providePorts.append(apx_port)            
+            self.providePorts.append(apx_port)
+            return len(self.providePorts)-1
          else:
             raise ValueError('invalid type '+str(type(port)))
    
    def append(self, port):
+      """
+      creates a new port in the node based in information in port argument
+      returns the port ID of the newly created port
+      """
       if isinstance(port, apx.RequirePort):
          self.requirePorts.append(port)
+         return len(self.requirePorts)-1
       elif isinstance(port, apx.ProvidePort):
          self.providePorts.append(port)
-      elif isinstance(port, autosar.component.port):
-         self.add_autosar_port(port)
+         return len(self.providePorts)-1
+      elif isinstance(port, autosar.component.Port):
+         return self.add_autosar_port(port)
+      elif isinstance(port, str):
+         parts = apx_split_line(port)
+         if len(parts) != 4:
+            raise ValueError("invalid APX string: '%s'"%port)         
+         if parts[0]=='R':
+            newPort = apx.RequirePort(parts[1],parts[2],parts[3])
+            if newPort is not None:
+               self.requirePorts.append(newPort)
+               return len(self.requirePorts)-1
+            raise ValueError('apx.RequirePort() returned None')
+         elif parts[0]=='P':
+            newPort = apx.ProvidePort(parts[1],parts[2],parts[3])
+            if newPort is not None:
+               self.providePorts.append(newPort)
+               return len(self.providePorts)-1
+            else:
+               raise ValueError('apx.ProvidePort() returned None')
+         else:
+            raise ValueError(parts[0])
       else:
          raise ValueError(type(port))
   
