@@ -1,5 +1,6 @@
 import apx.base
 import cfile as C
+import sys
 
 def _genCommentHeader(comment):
    lines = []  
@@ -10,17 +11,53 @@ def _genCommentHeader(comment):
 
 
 class SignalInfo:
-   def __init__(self, offset, pack_len, func, dsg, operation, init_value=None):
+   def __init__(self, name,offset, pack_len, func, dsg, operation, init_value=None):
+      self.name=name
       self.offset=offset
       self.pack_len=pack_len
       self.init_value=init_value
       self.func=func
-      self.dsg=dsg
+      self.dsg=dsg      
+      
+      if init_value is not None:
+         self.init_data = bytearray()
+         self.genInitData(dsg, init_value)
+      else:
+         self.init_data.extend([0 for x in self.pack_len])
+      
+      assert(len(self.init_data)==self.pack_len)
+      
       if operation == 'pack' or operation == 'unpack':
          self.operation=operation
       else:
          raise ValueError("operation: invalid parameter value '%s', expected 'pack' or 'unpack'"%operation)
-        
+   
+   def genInitData(self, dsg, init_value):      
+      if (init_value['type'] == 'record'):
+         if (dsg.data['type'] == 'record'):            
+            #not yet implemented
+            print("warning: init value for %s not yet implemented, adding zeros"%self.name, file=sys.stderr)
+            self.init_data.extend([0 for x in range(self.pack_len)])
+         else:
+            raise ValueError('expected init_value to have record type')
+      else:
+         if dsg.data['type']=='C' or dsg.data['type']=='c':
+            self.init_data.append(int(init_value['value']) & 0xFF)
+         elif dsg.data['type']=='S' or dsg.data['type']=='s':
+            #TODO: implement big endian support
+            self.init_data.append(int(init_value['value']) & 0xFF)
+            self.init_data.append(int(init_value['value'])>>8 & 0xFF)
+         elif dsg.data['type']=='L' or dsg.data['type']=='l':
+            #TODO: implement big endian support
+            self.init_data.append(int(init_value['value']) & 0xFF)
+            self.init_data.append(int(init_value['value'])>>8 & 0xFF)
+            self.init_data.append(int(init_value['value'])>>16 & 0xFF)
+            self.init_data.append(int(init_value['value'])>>24 & 0xFF)
+         else:
+            #not yet implemented
+            print("warning: init value for %s not yet implemented, adding zeros"%self.name, file=sys.stderr)
+            self.init_data.extend([0 for x in range(self.pack_len)])
+
 
 class NodeGenerator:
    def __init__(self):
@@ -164,7 +201,7 @@ class NodeGenerator:
       indent-=indentStep
       return code,packLen
    
-   def writeHeaderFile(self, fp, signalInfo, signalInfoMap, guard, node):
+   def writeHeaderFile(self, fp, signalInfoList, signalInfoMap, guard, node):
       #indent=0
       #indentStep=3
             
@@ -182,7 +219,7 @@ class NodeGenerator:
          if self.name.upper().startswith('APX'):
             del tmp[0]  
          identifier = '_'.join(tmp)
-         signalInfoElem=signalInfoMap[port.name]
+         signalInfoElem=signalInfoMap['require'][port.name]
          assert(signalInfoElem.operation == 'unpack')
          id_len=len(identifier)
          headerFile.code.append(C.define(identifier, str(signalInfoElem.offset).rjust(60-id_len)))
@@ -197,13 +234,13 @@ class NodeGenerator:
       headerFile.code.append(C.statement(initFunc))
       headerFile.code.append(C.statement(nodeDataFunc))
       headerFile.code.append(C.blank(1))      
-      for elem in signalInfo:
+      for elem in signalInfoList:
          headerFile.code.append(C.statement(elem.func))
          
       fp.write(str(headerFile))
       return (initFunc,nodeDataFunc)
    
-   def writeSourceFile(self, fp, signalInfo, initFunc, nodeDataFunc, node, inPortDataLen, outPortDataLen):
+   def writeSourceFile(self, fp, signalInfoMap, initFunc, nodeDataFunc, node, inPortDataLen, outPortDataLen):
       indent=0
       indentStep=3      
       sourceFile=C.cfile(None)
@@ -238,13 +275,26 @@ class NodeGenerator:
       if (outPortDataLen) > 0:
          outDatabuf=C.variable('m_outPortdata','uint8', static=True, array='APX_OUT_PORT_DATA_LEN')
          outInitData=C.variable('m_outPortInitData','uint8_t', static=True, const=True, array='APX_OUT_PORT_DATA_LEN')
-         code.append(str(outInitData)+'= {')
-         #TODO: implement support for init values
-         #initBytes=[]
-         #for port in requirePorts:
-         #   initBytes.extend(list(port['initValue']))
-         #assert(len(initBytes) == databuf.array)
-         code.append('   0')
+         code.append(str(outInitData)+'= {')         
+         initBytes=[]
+         for port in node.providePorts:
+            signalInfo = signalInfoMap['provide'][port.name]
+            initBytes.extend([str(x) for x in signalInfo.init_data])
+         assert(len(initBytes) == outPortDataLen)         
+         maxItemsPerLine=32
+         remain=len(initBytes)
+         while(remain>0):            
+            if remain>maxItemsPerLine:
+               numItems,last=maxItemsPerLine,False
+            else:
+               numItems,last=remain,True
+            if last:
+               code.append('   '+', '.join(initBytes[0:numItems]))
+            else:
+               code.append('   '+', '.join(initBytes[0:numItems])+',')
+            del initBytes[0:numItems]
+            remain=len(initBytes)
+            
          code.append('};')      
          code.append(C.blank(1))       
          code.append(C.statement(outDatabuf))
@@ -256,8 +306,24 @@ class NodeGenerator:
          inDatabuf=C.variable('m_inPortdata','uint8', static=True, array='APX_IN_PORT_DATA_LEN')
          inInitData=C.variable('m_inPortInitData','uint8_t', static=True, const=True, array='APX_IN_PORT_DATA_LEN')
          code.append(str(inInitData)+'= {')
-         #TODO: implement support for init values
-         code.append('   0')
+         initBytes=[]
+         for port in node.requirePorts:
+            signalInfo = signalInfoMap['require'][port.name]
+            initBytes.extend([str(x) for x in signalInfo.init_data])
+         assert(len(initBytes) == inPortDataLen)         
+         maxItemsPerLine=32
+         remain=len(initBytes)
+         while(remain>0):            
+            if remain>maxItemsPerLine:
+               numItems,last=maxItemsPerLine,False
+            else:
+               numItems,last=remain,True
+            if last:
+               code.append('   '+', '.join(initBytes[0:numItems]))
+            else:
+               code.append('   '+', '.join(initBytes[0:numItems])+',')
+            del initBytes[0:numItems]
+            remain=len(initBytes)
          code.append('};')      
          code.append(C.blank(1))       
          code.append(C.statement(inDatabuf))
@@ -311,16 +377,21 @@ class NodeGenerator:
       sourceFile.code.append(body)
       sourceFile.code.append(C.blank(1))
     
-      for signal in signalInfo:
-         sourceFile.code.append(signal.func)
-         if signal.operation == 'pack':
-            databuf = outDatabuf
-         else:
-            databuf = inDatabuf
-         body,packLen=self.genPackUnpackFunc(signal.func, databuf, signal.offset, signal.operation, signal.dsg.resolveType(), indent, indentStep)
+      for port in node.requirePorts:
+         signalInfo = signalInfoMap['require'][port.name]
+         sourceFile.code.append(signalInfo.func)
+         databuf = outDatabuf
+         body,packLen=self.genPackUnpackFunc(signalInfo.func, databuf, signalInfo.offset, signalInfo.operation, signalInfo.dsg, indent, indentStep)
          code.append(body)
          code.append(C.blank())
-      
+      for port in node.providePorts:
+         signalInfo = signalInfoMap['provide'][port.name]
+         sourceFile.code.append(signalInfo.func)
+         databuf = inDatabuf
+         body,packLen=self.genPackUnpackFunc(signalInfo.func, databuf, signalInfo.offset, signalInfo.operation, signalInfo.dsg, indent, indentStep)
+         code.append(body)
+         code.append(C.blank())         
+                  
       code.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
       code.append(C.line('// LOCAL FUNCTIONS'))
       code.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
@@ -345,8 +416,8 @@ class NodeGenerator:
       fp.write(str(sourceFile))
     
    def generate(self, node, header_fp, source_fp, name=None, includes=None):
-      signalInfo=[]
-      signalInfoMap={}
+      signalInfoList=[]
+      signalInfoMap={'require':{}, 'provide':{}}
       inPortDataLen=0
       outPortDataLen=0
       offset=0
@@ -361,10 +432,13 @@ class NodeGenerator:
          is_pointer=True
          func.add_arg(C.variable('val',port.dsg.ctypename(node.dataTypes),pointer=is_pointer))         
          packLen=port.dsg.packLen(node.dataTypes)
-         port.dsg.typeList= node.dataTypes
-         tmp = SignalInfo(offset,packLen,func,port.dsg,'unpack', 0) #TODO: implement init value
-         signalInfo.append(tmp)
-         signalInfoMap[port.name]=tmp
+         port.dsg.typeList=node.dataTypes
+         initValue=None
+         if port.attr is not None:
+            initValue = port.attr.initValue
+         tmp = SignalInfo(port.name,offset,packLen,func,port.dsg.resolveType(),'unpack', initValue)
+         signalInfoList.append(tmp)
+         signalInfoMap['require'][port.name]=tmp
          inPortDataLen+=packLen
          offset+=packLen
       #provide ports (out ports)
@@ -377,11 +451,14 @@ class NodeGenerator:
          func.add_arg(C.variable('val',port.dsg.ctypename(node.dataTypes),pointer=is_pointer))         
          packLen=port.dsg.packLen(node.dataTypes)
          port.dsg.typeList= node.dataTypes
-         tmp = SignalInfo(offset,packLen,func,port.dsg,'pack',0)
-         signalInfo.append(tmp) #TODO: implement init value
-         signalInfoMap[port.name]=tmp
+         initValue=None
+         if port.attr is not None:
+            initValue = port.attr.initValue
+         tmp = SignalInfo(port.name,offset,packLen,func,port.dsg.resolveType(),'pack',initValue)
+         signalInfoList.append(tmp)
+         signalInfoMap['provide'][port.name]=tmp
          outPortDataLen+=packLen
          offset+=packLen
             
-      (initFunc,nodeDataFunc) = self.writeHeaderFile(header_fp, signalInfo, signalInfoMap, name.upper()+'_H', node)
-      self.writeSourceFile(source_fp,signalInfo,initFunc,nodeDataFunc, node, inPortDataLen, outPortDataLen)
+      (initFunc,nodeDataFunc) = self.writeHeaderFile(header_fp, signalInfoList, signalInfoMap, name.upper()+'_H', node)
+      self.writeSourceFile(source_fp,signalInfoMap,initFunc,nodeDataFunc, node, inPortDataLen, outPortDataLen)
