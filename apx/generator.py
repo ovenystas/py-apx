@@ -62,6 +62,7 @@ class SignalInfo:
 class NodeGenerator:
    def __init__(self):
       self.includes=None
+      self.InPortDataNotifyFunc=None
 
    def genPackUnpackInteger(self, code, buf, operation, valname, dsg, localvar, offset, indent):   
       dataLen=0
@@ -233,9 +234,18 @@ class NodeGenerator:
       nodeDataFunc = C.function('%s_getNodeData'%self.name,'apx_nodeData_t',pointer=True) 
       headerFile.code.append(C.statement(initFunc))
       headerFile.code.append(C.statement(nodeDataFunc))
-      headerFile.code.append(C.blank(1))      
+      headerFile.code.append(C.blank(1))
       for elem in signalInfoList:
          headerFile.code.append(C.statement(elem.func))
+      
+      if self.inPortDataLen>0:
+         #void (*inPortDataWritten)(void *arg, struct apx_nodeData_tag *nodeData, uint32_t offset, uint32_t len)
+         self.InPortDataNotifyFunc=C.function(self.name+'_inPortDataWritten','void')
+         self.InPortDataNotifyFunc.add_arg(C.variable('arg','void',pointer=True))
+         self.InPortDataNotifyFunc.add_arg(C.variable('nodeData','apx_nodeData_t',pointer=True))
+         self.InPortDataNotifyFunc.add_arg(C.variable('offset','uint32_t'))
+         self.InPortDataNotifyFunc.add_arg(C.variable('len','uint32_t'))
+      headerFile.code.append(C.statement(self.InPortDataNotifyFunc))
          
       fp.write(str(headerFile))
       return (initFunc,nodeDataFunc)
@@ -249,6 +259,7 @@ class NodeGenerator:
       code.append(C.line('// INCLUDES'))
       code.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
       code.append(C.sysinclude('string.h'))
+      code.append(C.sysinclude('stdio.h')) #TEMPORARY, REMOVE LATER
       code.append(C.include('%s.h'%self.name))
       code.append(C.include('pack.h'))
       if self.includes is not None:
@@ -289,9 +300,9 @@ class NodeGenerator:
             else:
                numItems,last=remain,True
             if last:
-               code.append('   '+', '.join(initBytes[0:numItems]))
+               code.append(' '*indentStep+', '.join(initBytes[0:numItems]))
             else:
-               code.append('   '+', '.join(initBytes[0:numItems])+',')
+               code.append(' '*indentStep+', '.join(initBytes[0:numItems])+',')
             del initBytes[0:numItems]
             remain=len(initBytes)
             
@@ -319,9 +330,9 @@ class NodeGenerator:
             else:
                numItems,last=remain,True
             if last:
-               code.append('   '+', '.join(initBytes[0:numItems]))
+               code.append(' '*indentStep+', '.join(initBytes[0:numItems]))
             else:
-               code.append('   '+', '.join(initBytes[0:numItems])+',')
+               code.append(' '*indentStep+', '.join(initBytes[0:numItems])+',')
             del initBytes[0:numItems]
             remain=len(initBytes)
          code.append('};')      
@@ -390,7 +401,30 @@ class NodeGenerator:
          databuf = inDatabuf
          body,packLen=self.genPackUnpackFunc(signalInfo.func, databuf, signalInfo.offset, signalInfo.operation, signalInfo.dsg, indent, indentStep)
          code.append(body)
-         code.append(C.blank())         
+         code.append(C.blank())
+      
+      if self.InPortDataNotifyFunc is not None:
+         code.append(self.InPortDataNotifyFunc)
+         indent+=indentStep
+         body=C.block(innerIndent=indent)
+         body.append(C.statement('(void) arg'))
+         body.append(C.line('switch(offset)',indent=indent))
+         body.append(C.line('{',indent=indent))
+         for port in node.requirePorts:
+            tmp = (['APX',self.name.upper(), 'OFFSET',port.name.upper()])
+            if self.name.upper().startswith('APX'):
+               del tmp[0]  
+            identifier = '_'.join(tmp)
+            body.append(C.line('case %s:'%identifier,indent=indent))            
+            indent+=indentStep
+            body.append(C.statement(C.fcall('printf',['"%s %%d %%d\\n"'%(port.name),"offset","len"]),indent=indent))
+            indent-=indentStep
+            body.append(C.statement('break',indent=indent))
+         body.append(C.line('default:',indent=indent))
+         body.append(C.statement('break',indent=indent))
+         body.append(C.line('}',indent=indent))
+         code.append(body)
+         indent-=indentStep
                   
       code.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
       code.append(C.line('// LOCAL FUNCTIONS'))
@@ -398,19 +432,19 @@ class NodeGenerator:
       if outPortDataLen>0:
          code.append('''static void outPortData_writeCmd(apx_offset_t offset, apx_size_t len )
 {
-   if ( (apx_nodeData_getDataWriteMode(&m_nodeData) == true) && (m_outPortDirtyFlags[offset] == 0) )
+   if ( (m_outPortDirtyFlags[offset] == 0) && (true == apx_nodeData_isOutPortDataOpen(&m_nodeData) ) )
    {      
-      apx_dataWriteCmd_t cmd;
-      cmd.offset=offset;
-      cmd.len=len;
       m_outPortDirtyFlags[offset] = (uint8_t) 1u;
       apx_nodeData_unlockOutPortData(&m_nodeData);
-      apx_nodeData_outPortDataWriteCmd(&m_nodeData, &cmd);
+      apx_nodeData_outPortDataNotify(&m_nodeData, (uint32_t) offset, (uint32_t) len);
       return;
    }
    apx_nodeData_unlockOutPortData(&m_nodeData);
 }
+
+
 ''')
+      
       
       
       fp.write(str(sourceFile))
@@ -459,6 +493,7 @@ class NodeGenerator:
          signalInfoMap['provide'][port.name]=tmp
          outPortDataLen+=packLen
          offset+=packLen
-            
+      self.inPortDataLen=inPortDataLen
+      self.outPortDataLen=outPortDataLen
       (initFunc,nodeDataFunc) = self.writeHeaderFile(header_fp, signalInfoList, signalInfoMap, name.upper()+'_H', node)
       self.writeSourceFile(source_fp,signalInfoMap,initFunc,nodeDataFunc, node, inPortDataLen, outPortDataLen)

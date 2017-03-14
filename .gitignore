@@ -14,3 +14,5 @@ __pycache__/
 
 #sphinx-doc files
 /doc/_build/
+
+examples/generator_dev
