@@ -14,7 +14,7 @@ class TcpSocketAdapter:
       self.isAlive=False
       self.receiveHandler=None #a receiveHandler is a class implementing the remotefile.ReceiveHandler interface. One example is remotefile.FileManager
       self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      self.isGreetingParsed = False
+      self.isAcknowledgeSeen = False
       def worker():
          """
          This is the TCP worker thread, it blocks on socket.recv until either data is received or an exception occurs (sockets shuts down)
@@ -52,7 +52,8 @@ class TcpSocketAdapter:
          print(e)
          return False
       self.isConnected=True
-      self.socket.send(bytes('RMFP/1.0\nNumHeader-Format:32\n\n',encoding='ascii'))
+      greeting = bytes('RMFP/1.0\nNumHeader-Format:32\n\n',encoding='ascii')
+      self.socket.send(numheader.encode32(len(greeting))+greeting)
       return True
    
    def start(self):
@@ -84,11 +85,8 @@ class TcpSocketAdapter:
       iNext=None
       iEnd=len(buf)
       while iBegin<iEnd:
-         if self.isGreetingParsed==False:
-            iNext = self._parseGreetingData(buf,iBegin, iEnd)
-         else:
-            iNext = self._parseRemoteFileData(buf,iBegin, iEnd)
          
+         iNext = self._parseMessage(buf,iBegin, iEnd)
          if iNext<iBegin:
             sys.stderr.write("remotefile.socket_adapter._parseData failure\n")
             return -1
@@ -98,28 +96,8 @@ class TcpSocketAdapter:
             assert(iNext>iBegin)
             iBegin=iNext
       return iBegin
-   
-   def _parseGreetingData(self, buf, iBegin, iEnd):
-      while(iBegin<iEnd):
-         iNext = remotefile.readLine(buf, iBegin, iEnd)
-         if iNext<0:
-            return iNext
-         if iNext==iBegin:
-            if buf[iNext]==int(ord('\n')):
-               self.isGreetingParsed=True
-               print("greeting parsed")
-               if self.receiveHandler is not None:
-                  self.receiveHandler.onConnected(self)
-               return iNext+1
-            else:
-               return iBegin
-         else:
-            assert(iNext>iBegin)
-            #todo: parse line here
-            iBegin=iNext+1
-      return iBegin
-      
-   def _parseRemoteFileData(self, buf, iBegin, iEnd):
+        
+   def _parseMessage(self, buf, iBegin, iEnd):
       bytesParsed,value=numheader.decode32(buf,iBegin,iEnd)
       if bytesParsed<0:
          return bytesParsed
@@ -129,8 +107,14 @@ class TcpSocketAdapter:
          iNext=iBegin+bytesParsed
          #is the entire message data in the buffer? if not return iBegin
          if iNext+value<=iEnd:
-            msg=buf[iNext:iNext+value]            
-            if self.receiveHandler is not None:
+            msg=buf[iNext:iNext+value]
+            if self.isAcknowledgeSeen == False:               
+               if len(msg)==8 and msg==b'\xbf\xff\xfc\x00\x00\x00\x00\x00':
+                  self.isAcknowledgeSeen = True
+                  self.receiveHandler.onConnected(self)
+               else:
+                  raise RuntimeError('expected acknowledge from apx_server but something else')
+            elif self.receiveHandler is not None:
                self.receiveHandler.onMsgReceived(msg)
             return iNext+value
          else:

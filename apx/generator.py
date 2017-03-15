@@ -390,16 +390,14 @@ class NodeGenerator:
     
       for port in node.requirePorts:
          signalInfo = signalInfoMap['require'][port.name]
-         sourceFile.code.append(signalInfo.func)
-         databuf = outDatabuf
-         body,packLen=self.genPackUnpackFunc(signalInfo.func, databuf, signalInfo.offset, signalInfo.operation, signalInfo.dsg, indent, indentStep)
+         sourceFile.code.append(signalInfo.func)         
+         body,packLen=self.genPackUnpackFunc(signalInfo.func, inDatabuf, signalInfo.offset, signalInfo.operation, signalInfo.dsg, indent, indentStep)
          code.append(body)
          code.append(C.blank())
       for port in node.providePorts:
          signalInfo = signalInfoMap['provide'][port.name]
-         sourceFile.code.append(signalInfo.func)
-         databuf = inDatabuf
-         body,packLen=self.genPackUnpackFunc(signalInfo.func, databuf, signalInfo.offset, signalInfo.operation, signalInfo.dsg, indent, indentStep)
+         sourceFile.code.append(signalInfo.func)         
+         body,packLen=self.genPackUnpackFunc(signalInfo.func, outDatabuf, signalInfo.offset, signalInfo.operation, signalInfo.dsg, indent, indentStep)
          code.append(body)
          code.append(C.blank())
       
