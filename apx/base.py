@@ -65,7 +65,7 @@ class RequirePort(Port):
    def __init__(self, name, dataSignature, attributes=None):
       super().__init__('R',name, dataSignature, attributes)
    def mirror(self):
-      return ProvidePort(self.name, str(self.dsg), str(self.attr))
+      return ProvidePort(self.name, str(self.dsg), str(self.attr) if self.attr is not None else None)
 
 
 class ProvidePort(Port):
@@ -75,7 +75,7 @@ class ProvidePort(Port):
    def __init__(self, name, dataSignature, attributes=None):
       super().__init__('P',name, dataSignature, attributes)
    def mirror(self):
-      return RequirePort(self.name, str(self.dsg), str(self.attr))
+      return RequirePort(self.name, str(self.dsg), str(self.attr) if self.attr is not None else None)
 
      
 class DataType:

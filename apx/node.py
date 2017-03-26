@@ -211,10 +211,12 @@ class Node:
          lines.append(str(port))
       return lines
    
-   def mirror(self, name):
+   def mirror(self, name=None):
       """
       clones the node in a version where all provide and require ports are reversed
       """
+      if name is None:
+         name = self.name
       mirror = Node(name)
       mirror.dataTypes = deepcopy(self.dataTypes)
       mirror.requirePorts = [port.mirror() for port in self.providePorts]

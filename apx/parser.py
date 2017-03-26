@@ -166,6 +166,14 @@ class Parser(object):
             self.ln+=1
       self.node.text=text
       return self.node
+   
+   def parse(self, filename):
+      """
+      Convenience method for parsing file from filename
+      """
+      with open(filename, "r", encoding='utf-8') as fp:
+         return self.load(fp)
+      
 
    def _applyNode(self,apxNode):
       self.node = apxNode

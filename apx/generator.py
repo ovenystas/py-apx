@@ -1,4 +1,5 @@
 import apx.base
+import apx.context
 import cfile as C
 import sys
 
@@ -18,12 +19,12 @@ class SignalInfo:
       self.init_value=init_value
       self.func=func
       self.dsg=dsg      
+      self.init_data = bytearray()
       
-      if init_value is not None:
-         self.init_data = bytearray()
+      if init_value is not None:         
          self.genInitData(dsg, init_value)
       else:
-         self.init_data.extend([0 for x in self.pack_len])
+         self.init_data.extend([0 for x in range(self.pack_len)])
       
       assert(len(self.init_data)==self.pack_len)
       
@@ -60,6 +61,10 @@ class SignalInfo:
 
 
 class NodeGenerator:
+   """
+   APX Node generator for c-apx and apx-es
+   """
+   
    def __init__(self):
       self.includes=None
       self.InPortDataNotifyFunc=None
@@ -207,27 +212,30 @@ class NodeGenerator:
       #indentStep=3
             
       headerFile=C.hfile(None,guard=guard)
-      headerFile.code.append(C.blank(1))
-      headerFile.code.append(C.include('Std_Types.h'))
-      headerFile.code.append(C.include('Rte_Type.h'))
+      headerFile.code.append(C.blank(1))         
       headerFile.code.append(C.include('apx_nodeData.h'))
+      if self.includes is not None:
+         for filename in self.includes:
+            headerFile.code.append(C.include(filename))
+      
       headerFile.code.append(C.blank(1))
       headerFile.code.extend(_genCommentHeader('CONSTANTS'))
       
-      shortDefines=[]
-      for port in node.requirePorts:
-         tmp = (['APX',self.name.upper(), 'OFFSET',port.name.upper()])
-         if self.name.upper().startswith('APX'):
-            del tmp[0]  
-         identifier = '_'.join(tmp)
-         signalInfoElem=signalInfoMap['require'][port.name]
-         assert(signalInfoElem.operation == 'unpack')
-         id_len=len(identifier)
-         headerFile.code.append(C.define(identifier, str(signalInfoElem.offset).rjust(60-id_len)))
-         shortDefines.append(C.define('APX_OFFSET_'+port.name.upper(),identifier))
-      headerFile.code.append(C.blank(1))
-      if len(shortDefines)>0:
-         headerFile.code.extend(shortDefines)
+#TODO: fix constants generation
+      # shortDefines=[]
+      # for port in node.requirePorts:
+      #    tmp = (['APX',self.name.upper(), 'OFFSET',port.name.upper()])
+      #    if self.name.upper().startswith('APX'):
+      #       del tmp[0]  
+      #    identifier = '_'.join(tmp)
+      #    signalInfoElem=signalInfoMap['require'][port.name]
+      #    assert(signalInfoElem.operation == 'unpack')
+      #    id_len=len(identifier)
+      #    headerFile.code.append(C.define(identifier, str(signalInfoElem.offset).rjust(60-id_len)))
+      #    shortDefines.append(C.define('APX_OFFSET_'+port.name.upper(),identifier))
+      # headerFile.code.append(C.blank(1))      
+#      if len(shortDefines)>0:
+#         headerFile.code.extend(shortDefines)
       headerFile.code.append(C.blank(1))
       headerFile.code.extend(_genCommentHeader('FUNCTION PROTOTYPES'))      
       initFunc = C.function('%s_init'%self.name,'void')
@@ -252,7 +260,11 @@ class NodeGenerator:
    
    def writeSourceFile(self, fp, signalInfoMap, initFunc, nodeDataFunc, node, inPortDataLen, outPortDataLen):
       indent=0
-      indentStep=3      
+      indentStep=3
+      
+      ctx = apx.Context()
+      ctx.append(node)
+      nodeText = ctx.dumps()
       sourceFile=C.cfile(None)
       code = sourceFile.code
       code.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
@@ -262,14 +274,11 @@ class NodeGenerator:
       code.append(C.sysinclude('stdio.h')) #TEMPORARY, REMOVE LATER
       code.append(C.include('%s.h'%self.name))
       code.append(C.include('pack.h'))
-      if self.includes is not None:
-         for filename in self.includes:
-            code.append(C.include(filename))
       code.append(C.blank(1))
       code.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
       code.append(C.line('// CONSTANTS AND DATA TYPES'))
       code.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
-      code.append(C.define('APX_DEFINITON_LEN', str(len(node.text)+1)+'u')) #add 1 for empty newline
+      code.append(C.define('APX_DEFINITON_LEN', str(len(nodeText)+1)+'u')) #add 1 for empty newline
       code.append(C.define('APX_IN_PORT_DATA_LEN', str(inPortDataLen)+'u'))
       code.append(C.define('APX_OUT_PORT_DATA_LEN', str(outPortDataLen)+'u'))
       
@@ -344,7 +353,7 @@ class NodeGenerator:
       
       code.append(C.statement(C.variable('m_nodeData','apx_nodeData_t',static=True)))
       code.append(C.line('static const char *m_apxDefinitionData='))
-      for line in node.text.split('\n'):
+      for line in nodeText.split('\n'):
          line=line.replace('"','\\"')
          code.append(C.line('"%s\\n"'%line))         
       code.elements[-1].val+=';'
