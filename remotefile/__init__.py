@@ -350,7 +350,7 @@ class FileManager:
       assert(file.address is not None)
       fileContent=file.read(offset, length)
       if fileContent is not None:
-         msg=(RMF_MSG_WRITE_DATA,file.address, fileContent)
+         msg=(RMF_MSG_WRITE_DATA,file.address+offset, fileContent)
          self.msgQueue.put(msg)
    
 from remotefile.socket_adapter import TcpSocketAdapter
