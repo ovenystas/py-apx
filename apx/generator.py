@@ -414,32 +414,33 @@ class NodeGenerator:
          code.append(self.InPortDataNotifyFunc)
          indent+=indentStep
          body=C.block(innerIndent=indent)
-         body.append(C.statement('(void) arg'))
-         body.append(C.line('uint32_t endOffset=offset+len;',indent=indent))
-         body.append(C.blank())
-         body.append(C.line('while(offset < endOffset)',indent=indent))
-         body.append(C.line('{',indent=indent))
-         indent+=indentStep
-         body.append(C.line('switch(offset)',indent=indent))
-         body.append(C.line('{',indent=indent))
-         for port in node.requirePorts:
-            signal = signalInfoMap['require'][port.name]
-            tmp = (['APX',self.name.upper(), 'OFFSET',port.name.upper()])
-            if self.name.upper().startswith('APX'):
-               del tmp[0]  
-            identifier = '_'.join(tmp)
-            body.append(C.line('case %s:'%identifier,indent=indent))            
-            indent+=indentStep
-            body.append(C.line('///TODO: if a callback function has been registered, call it here',indent=indent))
-            body.append(C.statement(C.fcall('printf',['"%s\\n"'%port.name]), indent=indent))
-            body.append(C.statement('offset+=%du'%signal.pack_len,indent=indent))
-            indent-=indentStep
-            body.append(C.statement('break',indent=indent))
-         body.append(C.line('default:',indent=indent))         
-         body.append(C.statement('offset=endOffset; //breaks out of while-loop',indent=indent+indentStep))
-         body.append(C.line('}',indent=indent))
-         indent-=indentStep
-         body.append(C.line('}',indent=indent)) 
+#         body.append(C.line('uint32_t endOffset=offset+len;',indent=indent))
+#         body.append(C.statement('(void) arg'))         
+#         body.append(C.blank())
+         # body.append(C.line('while(offset < endOffset)',indent=indent))
+         # body.append(C.line('{',indent=indent))
+         # indent+=indentStep
+         # 
+         # body.append(C.line('switch(offset)',indent=indent))
+         # body.append(C.line('{',indent=indent))
+         # for port in node.requirePorts:
+         #    signal = signalInfoMap['require'][port.name]
+         #    tmp = (['APX',self.name.upper(), 'OFFSET',port.name.upper()])
+         #    if self.name.upper().startswith('APX'):
+         #       del tmp[0]  
+         #    identifier = '_'.join(tmp)
+         #    body.append(C.line('case %s:'%identifier,indent=indent))            
+         #    indent+=indentStep
+         #    body.append(C.line('///TODO: if a callback function has been registered, call it here',indent=indent))
+         #    body.append(C.statement(C.fcall('printf',['"%s\\n"'%port.name]), indent=indent))
+         #    body.append(C.statement('offset+=%du'%signal.pack_len,indent=indent))
+         #    indent-=indentStep
+         #    body.append(C.statement('break',indent=indent))
+         # body.append(C.line('default:',indent=indent))         
+         # body.append(C.statement('offset=endOffset; //breaks out of while-loop',indent=indent+indentStep))
+         # body.append(C.line('}',indent=indent))
+         # indent-=indentStep
+         # body.append(C.line('}',indent=indent)) 
 
    
    
