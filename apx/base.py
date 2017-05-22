@@ -27,8 +27,8 @@ def _derive_c_typename(item):
    """
    if   item['type']=='c': retval = 'sint8'
    elif item['type']=='C': retval = 'uint8'
-   elif item['type']=='s': retval= 'sint16'
-   elif item['type']=='S': retval = 'sint16'
+   elif item['type']=='s': retval = 'sint16'
+   elif item['type']=='S': retval = 'uint16'
    elif item['type']=='l': retval = 'sint32'
    elif item['type']=='L': retval = 'uint32'
    elif item['type']=='a': retval = 'uint8'
