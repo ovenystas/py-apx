@@ -224,7 +224,13 @@ class Node:
       for dataType in mirror.dataTypes:
          mirror.dataTypeMap[dataType.name]=dataType
       return mirror
-   
+   def find(self, name):
+      """
+      finds type or port by name
+      """
+      for elem in self.dataTypes+self.requirePorts+self.providePorts:
+         if elem.name == name:
+            return elem
    
 class AutosarPort:
    """

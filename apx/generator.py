@@ -2,6 +2,7 @@ import apx.base
 import apx.context
 import cfile as C
 import sys
+import autosar
 
 def _genCommentHeader(comment):
    lines = []  
@@ -518,3 +519,125 @@ class NodeGenerator:
       self.outPortDataLen=outPortDataLen
       (initFunc,nodeDataFunc) = self.writeHeaderFile(header_fp, signalInfoList, signalInfoMap, name.upper()+'_H', node)
       self.writeSourceFile(source_fp,signalInfoMap,initFunc,nodeDataFunc, node, inPortDataLen, outPortDataLen)
+
+class ComReadWriteFunction:
+   def __init__(self, portName, dataType, upperLayerFunc, lowerLayerFunc):
+      self.portName = portName
+      self.dataType = dataType
+      self.func = upperLayerFunc
+      self.innerFunc = lowerLayerFunc
+      self.innerIndent = 3
+      self.var = C.variable('m_'+portName, dataType.name, static=True)
+   
+
+class ComWriteFunction(ComReadWriteFunction):
+   def __init__(self, portName, dataType, upperLayerFunc, lowerLayerFunc):
+      super().__init__(portName, dataType, upperLayerFunc, lowerLayerFunc)
+      self._generateBody()
+   
+   def _generateBody(self):
+      self.body = C.block(innerIndent = self.innerIndent)
+      self.body.append(C.line('if (%s != %s)'%(self.func.args[0].name, self.var.name)))
+      block = C.block(innerIndent = self.innerIndent)
+      block.append(C.statement('%s = %s'%(self.var.name, self.func.args[0].name)))
+      block.append(C.statement(C.fcall(self.innerFunc.name, [self.func.args[0].name])))
+      self.body.append(block)
+      self.body.append(C.statement('return E_OK'));
+
+class ComGenerator:
+   def __init__(self, autosar_partition, apx_context):
+      self.partition = autosar_partition #upper layer contribution
+      self.apx_context = apx_context #APX context in lower layer
+      self.upperLayerAPI = {'read':[], 'write':[]}
+      self.localVars = []
+      self.innerIndent=3      
+      self.createAPI()
+      
+      
+   def createAPI(self):      
+      for component in self.partition.components:
+         swc = component.swc         
+         if isinstance(swc, autosar.component.ApplicationSoftwareComponent):
+            ws = swc.rootWS()
+            assert (ws is not None)
+            for port in swc.requirePorts + swc.providePorts:
+               portInterface = ws.find(port.portInterfaceRef)
+               assert(portInterface is not None)
+               if (type(portInterface) is autosar.portinterface.SenderReceiverInterface) and (len(portInterface.dataElements)>0):
+                  dataType = ws.find(portInterface.dataElements[0].typeRef)
+                  assert(dataType is not None)
+                  if isinstance(port, autosar.component.RequirePort):                     
+                     pass
+                  else:
+                     self.createWriteFunction(port, dataType)
+   
+   def createWriteFunction(self, ar_port, dataType):
+      print(dataType.isComplexType)
+      upperLayerFunc = C.function('ApxCom_Write_'+ar_port.name, 'Std_ReturnType')
+      isPointer = True if dataType.isComplexType else False      
+      upperLayerFunc.add_arg(C.variable('value', dataType.name, pointer=isPointer))      
+      lowerLayerFunc = None
+      for node in self.apx_context.nodes:
+         for apx_port in node.requirePorts + node.providePorts:
+            if apx_port.name == ar_port.name:
+               name = 'ApxNode_Write_%s_%s'%(node.name,apx_port.name)
+               lowerLayerFunc = C.function(name, 'Std_ReturnType')
+               lowerLayerFunc.add_arg(C.variable('val', dataType.name, pointer=isPointer))
+               break
+      if lowerLayerFunc is None:
+         raise ValueError('unable to find apx node with port '+ar_port.name)
+      info = ComWriteFunction(ar_port.name, dataType, upperLayerFunc, lowerLayerFunc)
+      self.upperLayerAPI['write'].append(info)
+      self.localVars.append(info.var)
+      
+      
+   def generateHeader(self, path):
+      hfile = C.hfile(path)
+      code = hfile.code
+      code.extend(_genCommentHeader('INCLUDES'))
+      code.append(C.include("Rte_Type.h"))
+      code.append(C.blank(1))
+      code.extend(_genCommentHeader('CONSTANTS AND DATA TYPES'))
+      code.append(C.blank(1))
+      code.extend(_genCommentHeader('GLOBAL FUNCTIONS'))
+      code.extend(self._genUpperLayerPrototypes())
+      with open(path, "w") as fp:
+         fp.write(str(hfile))
+      
+   
+   def _genUpperLayerPrototypes(self):
+      code = C.sequence()
+      for info in self.upperLayerAPI['write']:
+         code.append(C.statement(info.func))
+      return code
+   
+   def generateSource(self, path):
+      file = C.cfile(path)
+      code = file.code
+      code.extend(_genCommentHeader('INCLUDES'))
+      code.append(C.include("Rte_Type.h"))
+      code.append(C.blank(1))
+      code.extend(_genCommentHeader('CONSTANTS AND DATA TYPES'))
+      code.append(C.blank(1))
+      code.extend(_genCommentHeader('LOCAL FUNCTION PROTOTYPES'))      
+      code.extend(self._writeLocalVars())      
+      code.extend(self._generateGlobalFunctionsSource())      
+      with open(path, "w") as fp:
+         fp.write(str(file))
+   
+   def _writeLocalVars(self):
+      code = C.sequence()
+      code.append(C.blank(1))
+      code.extend(_genCommentHeader('LOCAL VARIABLES'))
+      for var in self.localVars:
+         code.append(C.statement(var))
+      return code
+   
+   def _generateGlobalFunctionsSource(self):
+      code = C.sequence()
+      code.append(C.blank(1))
+      code.extend(_genCommentHeader('GLOBAL FUNCTIONS'))
+      for info in self.upperLayerAPI['write']:
+         code.append(info.func)
+         code.append(info.body)
+      return code
