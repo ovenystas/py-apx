@@ -59,6 +59,22 @@ def _calcIntTypeLen(dataType):
    return None
 
 class Node:
+   """
+   Represents an APX node
+   
+   Example:
+   >>> import sys
+   >>> import apx
+   >>> node = apx.Node()
+   >>> node.append(apx.ProvidePort('TestSignal1','C'))
+   0
+   >>> node.append(apx.RequirePort('TestSignal2','S'))
+   0
+   >>> node.write(sys.stdout)
+   N"None"
+   P"TestSignal1"C
+   R"TestSignal2"S
+   """
    def __init__(self,name=None):
       self.name=name
       self.dataTypes = []
@@ -73,7 +89,7 @@ class Node:
             dataType = ws.find(portInterface.dataElements[0].typeRef)
             assert(dataType is not None)
             if dataType.name not in self.dataTypeMap:
-               item = apx.AutosarDataType(ws,dataType)
+               item = apx.AutosarDataType(ws,dataType, self)
                item.id=len(self.dataTypes)
                self.dataTypeMap[dataType.name]=item
                self.dataTypes.append(item)
@@ -277,9 +293,9 @@ class AutosarProvidePort(AutosarPort):
       return other
 
 class AutosarDataType:
-   def __init__(self,ws,dataType):
+   def __init__(self, ws, dataType, parent = None):
       self.name=dataType.name
-      self.dsg=self._calcDataSignature(ws,dataType)
+      self.dsg=apx.DataSignature(self._calcDataSignature(ws,dataType), parent)
       typeSemantics = ws.find('/DataType/DataTypeSemantics/%s'%dataType.name)
       if typeSemantics is not None:
          self.attr = self._calcAttribute(dataType,typeSemantics)
@@ -330,5 +346,7 @@ class AutosarDataType:
       else: raise Exception('unhandled data type: %s'%type(dataType))
       return ""
 
-
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
    

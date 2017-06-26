@@ -187,7 +187,7 @@ Context
 -------
 .. py:class :: Context()
 
-   The APX context is just a container for one or more (usually one) APX nodes.
+   The APX context is a container for one or more APX nodes.
 
 Example::
 
@@ -197,13 +197,35 @@ Example::
 
 .. py:method :: append(node : apx.Node)
 
-Appends an APX node to this context.
+Appends an APX node to the context.
 
-.. py:method :: write(file):
+.. py:method :: generateAPX(output_dir):
 
-writes context to file object. The file object must be an open file with write permission.
+For each node in context, generate a new APX Text file. outputDir is expected to be a directory where files are generated.
 
-For a context with a single node, this call is identical to performing node.write(file) except that the line "APX/1.2" will be inserted before the output from node.write().
+Returns:
+A list of file names written to output_dir
+
+Helper functions
+~~~~~~~~~~~~~~~~
+
+.. py::function :: apx.createContextfromPartition(partition)
+
+A complete APX context can be generated automatically from an AUTOSAR partition.
+A new APX node is created in the context for each AUTOSAR SWC found in the partition.
+
+Example::
+
+   import autosar
+   import apx
+   
+   ws = autosar.workspace()
+   ws.loadXML('SWC1.arxml')
+   ws.loadXML('SWC2.arxml')
+   partition = autosar.rte.Partition(prefix='ApxRte')
+   partition.addComponent(ws.find('/ComponentType/SWC1'))
+   partition.addComponent(ws.find('/ComponentType/SWC2'))
+   context = apx.createContextfromPartition(partition)
 
 Parser
 ------
