@@ -598,8 +598,7 @@ class ComGenerator:
          signal = self.config.receive[name]
          self.createReceiveFunction(signal.name, signal.dataType)
    
-   def createSendFunction(self, signal_name, dataType):
-      print(dataType.isComplexType)
+   def createSendFunction(self, signal_name, dataType):      
       upperLayerFunc = C.function('ApxCom_Send_'+signal_name, 'Std_ReturnType')
       isPointer = True if dataType.isComplexType else False      
       upperLayerFunc.add_arg(C.variable('value', dataType.name, pointer=isPointer))      
@@ -620,8 +619,7 @@ class ComGenerator:
       self.upperLayerAPI['send'].append(info)
       self.localVars.append(info.var)
 
-   def createReceiveFunction(self, signal_name, dataType):
-      print(dataType.isComplexType)
+   def createReceiveFunction(self, signal_name, dataType):      
       upperLayerFunc = C.function('ApxCom_Receive_'+signal_name, 'Std_ReturnType')
       isPointer = True
       upperLayerFunc.add_arg(C.variable('value', dataType.name, pointer=isPointer))      
