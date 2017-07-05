@@ -339,7 +339,9 @@ class AutosarDataType:
             #remove _RE from end of element names
             if elem.name.endswith('_RE'):
                elem.name=elem.name[:-3]
-            childType = ws.find(elem.typeRef)
+            childType = ws.find(elem.typeRef, role="DataType")
+            if childType is None:
+               raise ValueError("invalid type reference: %s"%elem.typeRef)
             result+='"%s"%s'%(elem.name, self._calcDataSignature(ws, childType))            
          result+="}"
          return result
