@@ -110,6 +110,10 @@ class Node:
       if (len(port.comspec)==1) and isinstance(port.comspec[0],autosar.component.DataElementComSpec):
          if port.comspec[0].initValueRef is not None:
             initValue = ws.find(port.comspec[0].initValueRef)
+            if initValue is None:
+               raise ValueError('invalid init value reference: '+port.comspec[0].initValueRef)
+            if isinstance(initValue, autosar.constant.Constant):
+               initValue=initValue.value
             return "="+self._deriveInitValueFromAutosarConstant(initValue)
       return None
    
