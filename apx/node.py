@@ -59,6 +59,22 @@ def _calcIntTypeLen(dataType):
    return None
 
 class Node:
+   """
+   Represents an APX node
+   
+   Example:
+   >>> import sys
+   >>> import apx
+   >>> node = apx.Node()
+   >>> node.append(apx.ProvidePort('TestSignal1','C'))
+   0
+   >>> node.append(apx.RequirePort('TestSignal2','S'))
+   0
+   >>> node.write(sys.stdout)
+   N"None"
+   P"TestSignal1"C
+   R"TestSignal2"S
+   """
    def __init__(self,name=None):
       self.name=name
       self.dataTypes = []
@@ -73,7 +89,7 @@ class Node:
             dataType = ws.find(portInterface.dataElements[0].typeRef)
             assert(dataType is not None)
             if dataType.name not in self.dataTypeMap:
-               item = apx.AutosarDataType(ws,dataType)
+               item = apx.AutosarDataType(ws,dataType, self)
                item.id=len(self.dataTypes)
                self.dataTypeMap[dataType.name]=item
                self.dataTypes.append(item)
@@ -94,6 +110,10 @@ class Node:
       if (len(port.comspec)==1) and isinstance(port.comspec[0],autosar.component.DataElementComSpec):
          if port.comspec[0].initValueRef is not None:
             initValue = ws.find(port.comspec[0].initValueRef)
+            if initValue is None:
+               raise ValueError('invalid init value reference: '+port.comspec[0].initValueRef)
+            if isinstance(initValue, autosar.constant.Constant):
+               initValue=initValue.value
             return "="+self._deriveInitValueFromAutosarConstant(initValue)
       return None
    
@@ -115,9 +135,12 @@ class Node:
          raise NotImplementedError(str(type(item)))
 
    
-   def import_autosar_swc(self, swc, ws=None):
+   def import_autosar_swc(self, swc, ws=None, name=None):
       assert(isinstance(swc, autosar.component.AtomicSoftwareComponent))
-      self.name=swc.name
+      if name is None:
+         self.name=swc.name
+      else:
+         self.name = name
       for port in swc.providePorts:
          self.add_autosar_port(port, ws)
       for port in swc.requirePorts:
@@ -277,9 +300,9 @@ class AutosarProvidePort(AutosarPort):
       return other
 
 class AutosarDataType:
-   def __init__(self,ws,dataType):
+   def __init__(self, ws, dataType, parent = None):
       self.name=dataType.name
-      self.dsg=self._calcDataSignature(ws,dataType)
+      self.dsg=apx.DataSignature(self._calcDataSignature(ws,dataType), parent)
       typeSemantics = ws.find('/DataType/DataTypeSemantics/%s'%dataType.name)
       if typeSemantics is not None:
          self.attr = self._calcAttribute(dataType,typeSemantics)
@@ -323,12 +346,16 @@ class AutosarDataType:
             #remove _RE from end of element names
             if elem.name.endswith('_RE'):
                elem.name=elem.name[:-3]
-            childType = ws.find(elem.typeRef)
+            childType = ws.find(elem.typeRef, role="DataType")
+            if childType is None:
+               raise ValueError("invalid type reference: %s"%elem.typeRef)
             result+='"%s"%s'%(elem.name, self._calcDataSignature(ws, childType))            
          result+="}"
          return result
       else: raise Exception('unhandled data type: %s'%type(dataType))
       return ""
 
-
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
    

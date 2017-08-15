@@ -92,7 +92,7 @@ Example::
    ws.loadXML(path_to_datatypes_arxml, roles={'/DataType': 'DataType'})
    ws.loadXML(path_to_constants_arxml, roles={'/Constant': 'Constant'})
    ws.loadXML(path_to_portinterfaces_arxml, roles={'/PortInterface': 'PortInterface'})
-   ws.loadXML(path_to_component_arxml, roles={'/ComponentType': 'ComponentType'})
+   ws.loadXML(path_to_swc_arxml, roles={'/ComponentType': 'ComponentType'})
 
    swc = ws.find('/ComponentType/'+name_of_swc)
    assert(swc is not None)
@@ -139,6 +139,30 @@ Output:
    P"TestSignal2"S
    R"TestSignal1"C
 
+.. py:method :: Node.import_autosar_swc(swc, ws):
+
+Imports all ports from an existing software component from an autosar workspace.
+
+Example::
+  
+   import sys
+   import apx
+   import autosar
+   
+   #Set all path_to_* variables seen below and set them to valid paths in the file system.
+   #Set name_of_swc to the name of the SWC you are converting to an APX node.
+  
+   ws=autosar.workspace()
+   ws.loadXML(path_to_datatypes_arxml, roles={'/DataType': 'DataType'})
+   ws.loadXML(path_to_constants_arxml, roles={'/Constant': 'Constant'})
+   ws.loadXML(path_to_portinterfaces_arxml, roles={'/PortInterface': 'PortInterface'})
+   ws.loadXML(path_to_swc_arxml, roles={'/ComponentType': 'ComponentType'})
+
+   swc = ws.find('/ComponentType/'+name_of_swc)
+   assert(swc is not None)
+
+   node = apx.Node(swc.name)
+   node.import_autosar_swc(swc, ws)
 
 RequirePort
 -----------
@@ -187,7 +211,7 @@ Context
 -------
 .. py:class :: Context()
 
-   The APX context is just a container for one or more (usually one) APX nodes.
+   The APX context is a container for one or more APX nodes.
 
 Example::
 
@@ -197,13 +221,35 @@ Example::
 
 .. py:method :: append(node : apx.Node)
 
-Appends an APX node to this context.
+Appends an APX node to the context.
 
-.. py:method :: write(file):
+.. py:method :: generateAPX(output_dir):
 
-writes context to file object. The file object must be an open file with write permission.
+For each node in context, generate a new APX Text file. outputDir is expected to be a directory where files are generated.
 
-For a context with a single node, this call is identical to performing node.write(file) except that the line "APX/1.2" will be inserted before the output from node.write().
+Returns:
+A list of file names written to output_dir
+
+Helper functions
+~~~~~~~~~~~~~~~~
+
+.. py::function :: apx.createContextfromPartition(partition)
+
+A complete APX context can be generated automatically from an AUTOSAR partition.
+A new APX node is created in the context for each AUTOSAR SWC found in the partition.
+
+Example::
+
+   import autosar
+   import apx
+   
+   ws = autosar.workspace()
+   ws.loadXML('SWC1.arxml')
+   ws.loadXML('SWC2.arxml')
+   partition = autosar.rte.Partition(prefix='ApxRte')
+   partition.addComponent(ws.find('/ComponentType/SWC1'))
+   partition.addComponent(ws.find('/ComponentType/SWC2'))
+   context = apx.createContextfromPartition(partition)
 
 Parser
 ------
