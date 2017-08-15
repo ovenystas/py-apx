@@ -288,8 +288,8 @@ class NodeGenerator:
       headerFile=C.hfile(None,guard=guard)
       headerFile.code.append(C.blank(1))         
       headerFile.code.append(C.include('apx_nodeData.h'))
-      headerFile.code.append(C.include('Std_Types.h'))
-      headerFile.code.append(C.include('Rte_Type.h'))
+      #headerFile.code.append(C.include('Std_Types.h'))
+      #headerFile.code.append(C.include('Rte_Type.h'))
       if self.includes is not None:
          for filename in self.includes:
             headerFile.code.append(C.include(filename))
@@ -329,7 +329,7 @@ class NodeGenerator:
          self.InPortDataNotifyFunc.add_arg(C.variable('nodeData','apx_nodeData_t',pointer=True))
          self.InPortDataNotifyFunc.add_arg(C.variable('offset','uint32_t'))
          self.InPortDataNotifyFunc.add_arg(C.variable('len','uint32_t'))
-      headerFile.code.append(C.statement(self.InPortDataNotifyFunc))
+         headerFile.code.append(C.statement(self.InPortDataNotifyFunc))
          
       fp.write(str(headerFile))
       return (initFunc,nodeDataFunc)

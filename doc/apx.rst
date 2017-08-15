@@ -92,7 +92,7 @@ Example::
    ws.loadXML(path_to_datatypes_arxml, roles={'/DataType': 'DataType'})
    ws.loadXML(path_to_constants_arxml, roles={'/Constant': 'Constant'})
    ws.loadXML(path_to_portinterfaces_arxml, roles={'/PortInterface': 'PortInterface'})
-   ws.loadXML(path_to_component_arxml, roles={'/ComponentType': 'ComponentType'})
+   ws.loadXML(path_to_swc_arxml, roles={'/ComponentType': 'ComponentType'})
 
    swc = ws.find('/ComponentType/'+name_of_swc)
    assert(swc is not None)
@@ -139,6 +139,30 @@ Output:
    P"TestSignal2"S
    R"TestSignal1"C
 
+.. py:method :: Node.import_autosar_swc(swc, ws):
+
+Imports all ports from an existing software component from an autosar workspace.
+
+Example::
+  
+   import sys
+   import apx
+   import autosar
+   
+   #Set all path_to_* variables seen below and set them to valid paths in the file system.
+   #Set name_of_swc to the name of the SWC you are converting to an APX node.
+  
+   ws=autosar.workspace()
+   ws.loadXML(path_to_datatypes_arxml, roles={'/DataType': 'DataType'})
+   ws.loadXML(path_to_constants_arxml, roles={'/Constant': 'Constant'})
+   ws.loadXML(path_to_portinterfaces_arxml, roles={'/PortInterface': 'PortInterface'})
+   ws.loadXML(path_to_swc_arxml, roles={'/ComponentType': 'ComponentType'})
+
+   swc = ws.find('/ComponentType/'+name_of_swc)
+   assert(swc is not None)
+
+   node = apx.Node(swc.name)
+   node.import_autosar_swc(swc, ws)
 
 RequirePort
 -----------

@@ -135,9 +135,12 @@ class Node:
          raise NotImplementedError(str(type(item)))
 
    
-   def import_autosar_swc(self, swc, ws=None):
+   def import_autosar_swc(self, swc, ws=None, name=None):
       assert(isinstance(swc, autosar.component.AtomicSoftwareComponent))
-      self.name=swc.name
+      if name is None:
+         self.name=swc.name
+      else:
+         self.name = name
       for port in swc.providePorts:
          self.add_autosar_port(port, ws)
       for port in swc.requirePorts:
