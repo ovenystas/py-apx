@@ -26,8 +26,9 @@ class Context:
    def append(self, node):
       assert(isinstance(node, apx.Node))
       self.nodes.append(node)
+      return self
       
-   def generateAPX(self, output_dir):
+   def generateAPX(self, output_dir='.'):
       """
       generates a new APX Text file for each node in context
       
