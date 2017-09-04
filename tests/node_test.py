@@ -5,6 +5,45 @@ import unittest
 import remotefile
 import autosar
 
+def _create_autosar_workspace():
+   ws = autosar.workspace()
+   dataTypes = ws.getDataTypePackage()
+   dataTypes.createIntegerDataType('OffOn_T', valueTable=[
+          "OffOn_Off",
+          "OffOn_On",
+          "OffOn_Error",
+          "OffOn_NotAvailable"])
+   dataTypes.createIntegerDataType('Percent_T', min=0, max=255, offset=0, scaling=0.4, unit='Percent')
+   dataTypes.createIntegerDataType('VehicleSpeed_T', min=0, max=65535, offset=0, scaling=1/64, unit='km/h')
+   dataTypes.createIntegerDataType('EngineSpeed_T', min=0, max=65535, offset=0, scaling=1/8, unit='rpm')
+   constants = ws.getConstantPackage()
+   constants.createConstant('C_EngineRunningStatus_IV', 'OffOn_T', 3)
+   constants.createConstant('C_FuelLevelPercent_IV', 'Percent_T', 255)
+   constants.createConstant('C_VehicleSpeed_IV', 'VehicleSpeed_T', 65535)
+   constants.createConstant('C_EngineSpeed_IV', 'EngineSpeed_T', 0)
+   portInterfaces = ws.getPortInterfacePackage()
+   portInterfaces.createSenderReceiverInterface('EngineRunningStatus_I', autosar.DataElement('EngineRunningStatus', 'OffOn_T'))
+   portInterfaces.createSenderReceiverInterface('FuelLevelPercent_I', autosar.DataElement('FuelLevelPercent', 'Percent_T'))
+   portInterfaces.createSenderReceiverInterface('VehicleSpeed_I', autosar.DataElement('VehicleSpeed', 'VehicleSpeed_T'))
+   portInterfaces.createSenderReceiverInterface('EngineSpeed_I', autosar.DataElement('EngineSpeed','EngineSpeed_T'))
+   components = ws.getComponentTypePackage()
+   swc = components.createApplicationSoftwareComponent('TestSWC')
+   swc.createProvidePort('EngineRunningStatus', 'EngineRunningStatus_I', initValueRef=constants['C_EngineRunningStatus_IV'].ref)
+   swc.createProvidePort('VehicleSpeed', 'VehicleSpeed_I', initValueRef=constants['C_VehicleSpeed_IV'].ref)
+   swc.createRequirePort('FuelLevelPercent', 'FuelLevelPercent_I', initValueRef=constants['C_FuelLevelPercent_IV'].ref)
+   swc.createRequirePort('EngineSpeed', 'EngineSpeed_I', initValueRef=constants['C_EngineSpeed_IV'].ref)
+   swc.behavior.createRunnable(swc.name+'_Init', portAccess=[x.name for x in swc.providePorts])
+   swc.behavior.createRunnable(swc.name+'_Run', portAccess=[x.name for x in swc.requirePorts+swc.providePorts])
+   return ws
+
+def _create_apx_context_from_autosar_workspace(ws):
+   context = apx.Context()
+   for swc in ws.findall('/ComponentType/*'):
+      if isinstance(swc, autosar.component.AtomicSoftwareComponent):
+         node = apx.Node().import_autosar_swc(swc)
+         context.append(node)
+   return context
+
 class TestNode(unittest.TestCase):
  
    def setUp(self):
@@ -46,8 +85,7 @@ class TestNode(unittest.TestCase):
       package.createSenderReceiverInterface('CoolantTemp_I', autosar.DataElement('CoolantTemp','/DataType/CoolantTemp_T'))
       package.createSenderReceiverInterface('ParkBrakeState_I', autosar.DataElement('InactiveActive','/DataType/InactiveActive_T'))
       package.createSenderReceiverInterface('MainBeamState_I', autosar.DataElement('OnOff','/DataType/OnOff_T'))
-      
-      packate = ws.createPackage('ComponentType', role='ComponentType')
+            
       package=ws.createPackage('ComponentType', role='ComponentType')
       swc=package.createApplicationSoftwareComponent('TestSWC')
       swc.createProvidePort('EngineSpeed', 'EngineSpeed_I', initValueRef='EngineSpeed_IV')
@@ -106,6 +144,39 @@ class TestNode(unittest.TestCase):
       self.assertEqual(node.requirePorts[1].dsg.calcStructFmtStr(node.dataTypes), '<4s') #char[4]
       self.assertEqual(node.requirePorts[2].dsg.calcStructFmtStr(node.dataTypes), '<8sI3H') #char[8],unsigned int, unsigned short[3]
       
+
+   def test_node_find(self):
+      ws = _create_autosar_workspace()
+      context = _create_apx_context_from_autosar_workspace(ws)
+      node = context.nodes[0]
+      self.assertEqual(node.name, 'TestSWC')
+      
+      #single type
+      data_type = node.find('VehicleSpeed_T')
+      self.assertIsInstance(data_type, apx.AutosarDataType)
+      self.assertEqual(data_type.name, 'VehicleSpeed_T')
+      
+      #single require port
+      port = node.find('FuelLevelPercent')
+      self.assertIsInstance(port, apx.RequirePort)
+      self.assertEqual(port.name, 'FuelLevelPercent')
+      
+      #single provide port
+      port = node.find('EngineRunningStatus')
+      self.assertIsInstance(port, apx.ProvidePort)
+      self.assertEqual(port.name, 'EngineRunningStatus')
+      
+      #two require ports
+      port_list = node.find(['FuelLevelPercent', 'InvalidName', 'EngineSpeed'])
+      self.assertIsInstance(port_list, list)
+      self.assertEqual(len(port_list), 3)
+      self.assertIsInstance(port_list[0], apx.RequirePort)
+      self.assertEqual(port_list[0].name, 'FuelLevelPercent')
+      self.assertIsNone(port_list[1])
+      self.assertIsInstance(port_list[2], apx.RequirePort)
+      self.assertEqual(port_list[2].name, 'EngineSpeed')
+      
+         
    
 if __name__ == '__main__':
     unittest.main()

@@ -70,6 +70,7 @@ class NodeGenerator:
    def __init__(self):
       self.includes=None
       self.InPortDataNotifyFunc=None
+      self.callbacks=None
 
    def genPackUnpackInteger(self, code, buf, operation, valname, dsg, localvar, offset, indent):   
       dataLen=0
@@ -209,7 +210,7 @@ class NodeGenerator:
       indent-=indentStep
       return code,packLen
 
-   def generate(self, output_dir, node, name=None, includes=None):
+   def generate(self, output_dir, node, name=None, includes=None, callbacks=None):
       """
       generates APX node layer for single APX node
       
@@ -221,7 +222,9 @@ class NodeGenerator:
          
          name: Can be used to override the name of the APX node. Default is 
          
-         includes: list of additional include files
+         includes: optional list of additional include files,
+         
+         callbacks: optional dict of require port callbacks (key: port name, value: name of C callback function)
       
       """
       signalInfoList=[]
@@ -237,6 +240,7 @@ class NodeGenerator:
       self.name=name
       self.prefixed_name = prefixed_name
       self.includes=includes
+      self.callbacks = callbacks
       #require ports (in ports)
       for port in node.requirePorts:
          is_pointer=False        
