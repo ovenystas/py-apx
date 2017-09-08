@@ -124,7 +124,7 @@ class Node:
          else:
             return "%d"%item.value
       elif isinstance(item,autosar.constant.StringValue):
-            return '="%s"'%item.value
+            return '"%s"'%item.value
       elif isinstance(item,autosar.constant.RecordValue):
          tmp = [self._deriveInitValueFromAutosarConstant(x) for x in item.elements]
          return "{"+','.join(tmp)+"}"
