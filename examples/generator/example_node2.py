@@ -58,10 +58,10 @@ def create_apx_context(ws):
    
 def generate_apx_node(context, derived_dir):
    node_generator = apx.NodeGenerator()   
-   for node in context.nodes:
-      callback_map = {'FuelLevelPercent': node.name+'_FuelLevelPercent_Cbk',
-                      'EngineSpeed': node.name+'_EngineSpeed'}
-      node_generator.generate(derived_dir, node, includes=['Rte_Type.h'], callbacks = callback_map)
+   node = context.nodes[0]
+   callback_map = {'FuelLevelPercent': node.name+'_FuelLevelPercent_Cbk',
+                   'EngineSpeed': node.name+'_EngineSpeed_Cbk'}
+   node_generator.generate(derived_dir, node, includes=['Rte_Type.h'], callbacks = callback_map)
 
 def save_apx_files(context, derived_dir):
    context.generateAPX(derived_dir)

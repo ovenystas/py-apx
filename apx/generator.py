@@ -6,7 +6,7 @@ import autosar
 import os
 
 def _genCommentHeader(comment):
-   lines = []  
+   lines = []
    lines.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
    lines.append(C.line('// %s'%comment))
    lines.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
@@ -20,24 +20,24 @@ class SignalInfo:
       self.pack_len=pack_len
       self.init_value=init_value
       self.func=func
-      self.dsg=dsg      
+      self.dsg=dsg
       self.init_data = bytearray()
-      
-      if init_value is not None:         
+
+      if init_value is not None:
          self.genInitData(dsg, init_value)
       else:
          self.init_data.extend([0 for x in range(self.pack_len)])
-      
+
       assert(len(self.init_data)==self.pack_len)
-      
+
       if operation == 'pack' or operation == 'unpack':
          self.operation=operation
       else:
          raise ValueError("operation: invalid parameter value '%s', expected 'pack' or 'unpack'"%operation)
-   
-   def genInitData(self, dsg, init_value):      
+
+   def genInitData(self, dsg, init_value):
       if (init_value['type'] == 'record'):
-         if (dsg.data['type'] == 'record'):            
+         if (dsg.data['type'] == 'record'):
             #not yet implemented
             print("warning: init value for %s not yet implemented, adding zeros"%self.name, file=sys.stderr)
             self.init_data.extend([0 for x in range(self.pack_len)])
@@ -61,18 +61,69 @@ class SignalInfo:
             print("warning: init value for %s not yet implemented, adding zeros"%self.name, file=sys.stderr)
             self.init_data.extend([0 for x in range(self.pack_len)])
 
+class CallbackInfo:
+   """
+   A class that represents everything we need to know about user-defined callbacks
+   """
+   def __init__(self, indent=3):
+      self.local_types = {}
+      self.defines = {}
+      self.code_fragments = {}
+      self.data_vars = None
+      self.isFinalized = False
+      self.pending = []
+      self.indent = indent
+      self.functions = []
+
+   def create(self, port_info, callback_name):
+      """
+      creates a new callback mapping. variable info must be of type SignalInfo
+      """
+      type_name = port_info.func.args[0].typename
+      if (type_name not in self.local_types):
+         self.local_types[type_name] = []
+      self.local_types[type_name].append(port_info.name)
+      port_define = C.define("APX_RX_OFFSET_%s"%(port_info.name.upper()), port_info.offset)
+      self.defines[port_info.name] = port_define
+      self.pending.append((port_info, callback_name, type_name, port_define))
+
+
+   def finalize(self):
+      self.data_vars = {}
+      for type_name, port_names in self.local_types.items():
+         if len(port_names) == 1:
+            var_name = port_names[0]
+         else:
+            var_name = type_name+'Val'
+         self.data_vars[type_name] = C.variable(var_name, type_name)
+      for elem in self.pending:
+         self._generate_code_fragment(*elem)
+      self.pending=[]
+      self.isFinalized = True
+
+
+   def _generate_code_fragment(self, port_info, callback_name, type_name, port_define):
+      code = C.sequence()
+      var = self.data_vars[type_name]
+      code.append(C.line('case %s:'%port_define.left))
+      code.append(C.statement('(void) %s(&data.%s)'%(port_info.func.name, var.name), indent=self.indent))
+      modifier='&' if port_info.dsg.isComplexType() else ''
+      code.append(C.statement(C.fcall(callback_name, [modifier+'data.'+var.name]), indent=self.indent))
+      code.append(C.statement('break', indent=self.indent))
+      self.code_fragments[port_info.offset]=code
+      self.functions.append(C.function(callback_name, 'void', args=[C.variable('value', type_name, pointer=port_info.dsg.isComplexType())]))
 
 class NodeGenerator:
    """
    APX Node generator for c-apx and apx-es
    """
-   
+
    def __init__(self):
       self.includes=None
       self.InPortDataNotifyFunc=None
-      self.callbacks=None
+      self.callbacks=CallbackInfo()
 
-   def genPackUnpackInteger(self, code, buf, operation, valname, dsg, localvar, offset, indent):   
+   def genPackUnpackInteger(self, code, buf, operation, valname, dsg, localvar, offset, indent):
       dataLen=0
       resolvedDsg = dsg.resolveType()
       if resolvedDsg.data['type']=='c' or resolvedDsg.data['type']=='C':
@@ -98,7 +149,7 @@ class NodeGenerator:
          if dataLen==1:
             if operation == 'pack':
                code.append(C.statement("%s[%d]=(uint8) %s"%(buf.name,offset,valname),indent=indent))
-            else: #unpack               
+            else: #unpack
                code.append(C.statement("*%s = (%s) %s[%d]"%(valname, basetype, buf.name, offset),indent=indent))
          else:
             if operation == 'pack':
@@ -106,7 +157,7 @@ class NodeGenerator:
             else: #unpack
                code.append(C.statement('*%s = (%s) unpackLE(&%s[%d],(uint8) %du)'%(valname, basetype, buf.name, offset, dataLen),indent=indent))
       return dataLen
-   
+
    def genPackUnpackItem(self, code, buf, operation, val, dsg, localvar, offset, indent, indentStep):
       packLen=0
       if isinstance(val,C.variable):
@@ -114,10 +165,10 @@ class NodeGenerator:
       elif isinstance(val,str):
          valname=val
       else:
-         raise ValueError(val)      
+         raise ValueError(val)
       if (dsg.isComplexType()):
          #raise NotImplemented('complex types not yet fully supported')
-         if dsg.data['type'].startswith('a'): #string         
+         if dsg.data['type'].startswith('a'): #string
             if 'bufptr' in localvar:
                #use relative addressing using 'p' pointer
                if operation == 'pack':
@@ -127,7 +178,7 @@ class NodeGenerator:
                else:
                   code.append(C.statement('memcpy(%s,%s,%d)'%(valname,localvar['bufptr'].name,dsg.data['arrayLen']),indent=indent))
                code.append(C.statement('%s+=%d'%(localvar['bufptr'].name,dsg.data['arrayLen']),indent=indent))
-            else:               
+            else:
                #use absolute addressing using buf variable and offset
                if operation == 'pack':
                   if dsg.data['arrayLen']>1:
@@ -138,8 +189,8 @@ class NodeGenerator:
             packLen=dsg.data['arrayLen']
          elif dsg.data['type']=='record':
             if 'bufptr' not in localvar:
-               localvar['bufptr']=C.variable('p','uint8',pointer=True)      
-            for elem in dsg.data['elements']:                     
+               localvar['bufptr']=C.variable('p','uint8',pointer=True)
+            for elem in dsg.data['elements']:
                if isinstance(val,C.variable):
                   #TODO: replace following lines with call to user hook that instead applies the _RE-rule to record elements
                   if val.pointer:
@@ -152,39 +203,39 @@ class NodeGenerator:
                itemLen=self.genPackUnpackItem(code, buf, operation, childName, apx.DataSignature(elem), localvar, offset, indent, indentStep)
                offset+=itemLen
                packLen+=itemLen
-         elif dsg.isArray():      
-            if 'loopVar' not in localvar:            
+         elif dsg.isArray():
+            if 'loopVar' not in localvar:
                if dsg.data['arrayLen']<256:
                   typename='uint8'
                elif dsg.data['arrayLen']<65536:
                   typename='uint16'
                else:
-                  typename='uint32' 
+                  typename='uint32'
                localvar['loopVar']=C.variable('i',typename)
             else:
                if localvar['loopVar'].typename=='uint8' and (typename=='uint16' or typename=='uint32'):
                   localvar['loopVar'].typename=typename
                elif localvar['loopVar'].typename=='uint16' and typename=='uint32':
                   localvar['loopVar'].typename=typename
-            if 'bufptr' not in localvar:         
-               localvar['bufptr']=C.variable('p','uint8',pointer=True)         
+            if 'bufptr' not in localvar:
+               localvar['bufptr']=C.variable('p','uint8',pointer=True)
             code.append(C.statement('for({0}=0;{0}<{1};{0}++)'.format(localvar['loopVar'].name,dsg.data['arrayLen']),indent=indent))
             block=C.block(indent=indent)
             indent+=indentStep
             itemLen=genPackUnpackItem(block, buf, operation, valname+'[%s]'%localvar['loopVar'].name, childType, localvar, offset)
             indent-=indentStep
-            code.append(block)         
+            code.append(block)
       else:
          packLen=self.genPackUnpackInteger(code, buf, operation, valname, dsg, localvar, offset, indent)
       return packLen
-   
+
    def genPackUnpackFunc(self, func, buf, offset, operation, dsg, indent, indentStep):
       indent+=indentStep
       packLen=0
       code=C.block()
       localvar={'buf':'m_outPortdata'}
       val=func.args[0]
-            
+
       codeBlock=C.sequence()
       packLen=self.genPackUnpackItem(codeBlock, buf, operation, val, dsg, localvar, offset, indent, indentStep)
       initializer=C.initializer(None,['(uint16)%du'%offset,'(uint16)%du'%packLen])
@@ -200,9 +251,9 @@ class NodeGenerator:
       else:
          code.append(C.statement('apx_nodeData_lockInPortData(&m_nodeData)', indent=indent))
       if 'bufptr' in localvar:
-         code.append(C.statement('%s=&%s[%d]'%(localvar['bufptr'].name,buf.name,offset),indent=indent))      
+         code.append(C.statement('%s=&%s[%d]'%(localvar['bufptr'].name,buf.name,offset),indent=indent))
       code.extend(codeBlock)
-      if operation=='pack':      
+      if operation=='pack':
          code.append(C.statement(C.fcall('outPortData_writeCmd', params=[offset, packLen]),indent=indent))
       else:
          code.append(C.statement('apx_nodeData_unlockInPortData(&m_nodeData)', indent=indent))
@@ -213,19 +264,19 @@ class NodeGenerator:
    def generate(self, output_dir, node, name=None, includes=None, callbacks=None):
       """
       generates APX node layer for single APX node
-      
+
       parameters:
-      
+
          node: APX node object
-         
+
          output_dir: directory where to generate header and source files
-         
-         name: Can be used to override the name of the APX node. Default is 
-         
+
+         name: Can be used to override the name of the APX node. Default is
+
          includes: optional list of additional include files,
-         
+
          callbacks: optional dict of require port callbacks (key: port name, value: name of C callback function)
-      
+
       """
       signalInfoList=[]
       signalInfoMap={'require':{}, 'provide':{}}
@@ -240,31 +291,33 @@ class NodeGenerator:
       self.name=name
       self.prefixed_name = prefixed_name
       self.includes=includes
-      self.callbacks = callbacks
+      self.callback_list = []
       #require ports (in ports)
       for port in node.requirePorts:
-         is_pointer=False        
+         is_pointer=False
          func = C.function("ApxNode_Read_%s_%s"%(name,port.name),"Std_ReturnType")
          is_pointer=True
-         func.add_arg(C.variable('val',port.dsg.ctypename(node.dataTypes),pointer=is_pointer))         
+         func.add_arg(C.variable('val',port.dsg.ctypename(node.dataTypes),pointer=is_pointer))
          packLen=port.dsg.packLen(node.dataTypes)
          port.dsg.typeList=node.dataTypes
          initValue=None
          if port.attr is not None:
             initValue = port.attr.initValue
-         tmp = SignalInfo(port.name,offset,packLen,func,port.dsg.resolveType(),'unpack', initValue)
-         signalInfoList.append(tmp)
-         signalInfoMap['require'][port.name]=tmp
+         info = SignalInfo(port.name,offset,packLen,func,port.dsg.resolveType(),'unpack', initValue)
+         if (callbacks is not None) and (port.name in callbacks):
+            self.callbacks.create(info, callbacks[port.name])
+         signalInfoList.append(info)
+         signalInfoMap['require'][port.name]=info
          inPortDataLen+=packLen
          offset+=packLen
       #provide ports (out ports)
-      offset=0      
+      offset=0
       for port in node.providePorts:
-         is_pointer=False        
+         is_pointer=False
          func = C.function("ApxNode_Write_%s_%s"%(name,port.name),"Std_ReturnType")
          if port.dsg.isComplexType(node.dataTypes) and not port.dsg.isArray(node.dataTypes):
-            is_pointer=True    
-         func.add_arg(C.variable('val',port.dsg.ctypename(node.dataTypes),pointer=is_pointer))         
+            is_pointer=True
+         func.add_arg(C.variable('val',port.dsg.ctypename(node.dataTypes),pointer=is_pointer))
          packLen=port.dsg.packLen(node.dataTypes)
          port.dsg.typeList= node.dataTypes
          initValue=None
@@ -275,57 +328,47 @@ class NodeGenerator:
          signalInfoMap['provide'][port.name]=tmp
          outPortDataLen+=packLen
          offset+=packLen
+      self.callbacks.finalize()
       self.inPortDataLen=inPortDataLen
       self.outPortDataLen=outPortDataLen
       header_filename = os.path.normpath(os.path.join(output_dir, self.prefixed_name+'.h'))
       source_filename = os.path.normpath(os.path.join(output_dir, self.prefixed_name+'.c'))
+      callback_path,callback_file=None,None      
+      if len(self.callbacks.functions)>0:
+         callback_file = self.prefixed_name+'_Cbk.h'
+         callback_path = os.path.normpath(os.path.join(output_dir, callback_file))         
+         with open(callback_path, "w") as fp:
+            self._writeCallbackPrototypes(fp, prefixed_name.upper()+'_CBK_H')
       with open(header_filename, "w") as fp:
          (initFunc,nodeDataFunc) = self._writeHeaderFile(fp, signalInfoList, signalInfoMap, prefixed_name.upper()+'_H', node)
       with open(source_filename, "w") as fp:
-         self._writeSourceFile(fp,signalInfoMap,initFunc,nodeDataFunc, node, inPortDataLen, outPortDataLen)
-   
-   
+         self._writeSourceFile(fp,signalInfoMap,initFunc,nodeDataFunc, node, inPortDataLen, outPortDataLen, callback_file)
+
+
    def _writeHeaderFile(self, fp, signalInfoList, signalInfoMap, guard, node):
-      #indent=0
-      #indentStep=3
-            
+
       headerFile=C.hfile(None,guard=guard)
-      headerFile.code.append(C.blank(1))         
+      headerFile.code.append(C.blank(1))
       headerFile.code.append(C.include('apx_nodeData.h'))
       #headerFile.code.append(C.include('Std_Types.h'))
       #headerFile.code.append(C.include('Rte_Type.h'))
       if self.includes is not None:
          for filename in self.includes:
             headerFile.code.append(C.include(filename))
-      
+
       headerFile.code.append(C.blank(1))
       headerFile.code.extend(_genCommentHeader('CONSTANTS'))
-      
-#TODO: fix constants generation
-      # shortDefines=[]
-      # for port in node.requirePorts:
-      #    tmp = (['APX',self.name.upper(), 'OFFSET',port.name.upper()])
-      #    if self.name.upper().startswith('APX'):
-      #       del tmp[0]  
-      #    identifier = '_'.join(tmp)
-      #    signalInfoElem=signalInfoMap['require'][port.name]
-      #    assert(signalInfoElem.operation == 'unpack')
-      #    id_len=len(identifier)
-      #    headerFile.code.append(C.define(identifier, str(signalInfoElem.offset).rjust(60-id_len)))
-      #    shortDefines.append(C.define('APX_OFFSET_'+port.name.upper(),identifier))
-      # headerFile.code.append(C.blank(1))      
-#      if len(shortDefines)>0:
-#         headerFile.code.extend(shortDefines)
+
       headerFile.code.append(C.blank(1))
-      headerFile.code.extend(_genCommentHeader('FUNCTION PROTOTYPES'))      
+      headerFile.code.extend(_genCommentHeader('FUNCTION PROTOTYPES'))
       initFunc = C.function('ApxNode_Init_%s'%self.name,'void')
-      nodeDataFunc = C.function('ApxNode_GetNodeData_%s'%self.name,'apx_nodeData_t',pointer=True) 
+      nodeDataFunc = C.function('ApxNode_GetNodeData_%s'%self.name,'apx_nodeData_t',pointer=True)
       headerFile.code.append(C.statement(initFunc))
       headerFile.code.append(C.statement(nodeDataFunc))
       headerFile.code.append(C.blank(1))
       for elem in signalInfoList:
          headerFile.code.append(C.statement(elem.func))
-      
+
       if self.inPortDataLen>0:
          #void (*inPortDataWritten)(void *arg, struct apx_nodeData_tag *nodeData, uint32_t offset, uint32_t len)
          self.InPortDataNotifyFunc=C.function(self.name+'_inPortDataWritten','void')
@@ -334,14 +377,14 @@ class NodeGenerator:
          self.InPortDataNotifyFunc.add_arg(C.variable('offset','uint32_t'))
          self.InPortDataNotifyFunc.add_arg(C.variable('len','uint32_t'))
          headerFile.code.append(C.statement(self.InPortDataNotifyFunc))
-         
+
       fp.write(str(headerFile))
       return (initFunc,nodeDataFunc)
-   
-   def _writeSourceFile(self, fp, signalInfoMap, initFunc, nodeDataFunc, node, inPortDataLen, outPortDataLen):
+
+   def _writeSourceFile(self, fp, signalInfoMap, initFunc, nodeDataFunc, node, inPortDataLen, outPortDataLen, callbackHeader):
       indent=0
       indentStep=3
-      
+
       ctx = apx.Context()
       ctx.append(node)
       nodeText = ctx.dumps()
@@ -353,6 +396,8 @@ class NodeGenerator:
       code.append(C.sysinclude('string.h'))
       code.append(C.sysinclude('stdio.h')) #TEMPORARY, REMOVE LATER
       code.append(C.include('%s.h'%self.prefixed_name))
+      if callbackHeader is not None:
+         code.append(C.include(callbackHeader))
       code.append(C.include('pack.h'))
       code.append(C.blank(1))
       code.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
@@ -361,7 +406,10 @@ class NodeGenerator:
       code.append(C.define('APX_DEFINITON_LEN', str(len(nodeText)+1)+'u')) #add 1 for empty newline
       code.append(C.define('APX_IN_PORT_DATA_LEN', str(inPortDataLen)+'u'))
       code.append(C.define('APX_OUT_PORT_DATA_LEN', str(outPortDataLen)+'u'))
-      
+      if len(self.callbacks.defines)>0:
+         for define in sorted(self.callbacks.defines.values(), key=lambda x: x.right):
+            code.append(str(define))
+
       code.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
       code.append(C.line('// LOCAL FUNCTIONS'))
       code.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
@@ -371,19 +419,19 @@ class NodeGenerator:
       code.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
       code.append(C.line('// LOCAL VARIABLES'))
       code.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
-      
+
       if (outPortDataLen) > 0:
          outDatabuf=C.variable('m_outPortdata','uint8', static=True, array='APX_OUT_PORT_DATA_LEN')
          outInitData=C.variable('m_outPortInitData','uint8_t', static=True, const=True, array='APX_OUT_PORT_DATA_LEN')
-         code.append(str(outInitData)+'= {')         
+         code.append(str(outInitData)+'= {')
          initBytes=[]
          for port in node.providePorts:
             signalInfo = signalInfoMap['provide'][port.name]
             initBytes.extend([str(x) for x in signalInfo.init_data])
-         assert(len(initBytes) == outPortDataLen)         
+         assert(len(initBytes) == outPortDataLen)
          maxItemsPerLine=32
          remain=len(initBytes)
-         while(remain>0):            
+         while(remain>0):
             if remain>maxItemsPerLine:
                numItems,last=maxItemsPerLine,False
             else:
@@ -394,14 +442,14 @@ class NodeGenerator:
                code.append(' '*indentStep+', '.join(initBytes[0:numItems])+',')
             del initBytes[0:numItems]
             remain=len(initBytes)
-            
-         code.append('};')      
-         code.append(C.blank(1))       
+
+         code.append('};')
+         code.append(C.blank(1))
          code.append(C.statement(outDatabuf))
          code.append(C.statement(C.variable('m_outPortDirtyFlags','uint8_t', static=True, array='APX_OUT_PORT_DATA_LEN')))
       else:
-         outDatabuf,outInitData = None,None         
-      
+         outDatabuf,outInitData = None,None
+
       if (inPortDataLen) > 0:
          inDatabuf=C.variable('m_inPortdata','uint8', static=True, array='APX_IN_PORT_DATA_LEN')
          inInitData=C.variable('m_inPortInitData','uint8_t', static=True, const=True, array='APX_IN_PORT_DATA_LEN')
@@ -410,10 +458,10 @@ class NodeGenerator:
          for port in node.requirePorts:
             signalInfo = signalInfoMap['require'][port.name]
             initBytes.extend([str(x) for x in signalInfo.init_data])
-         assert(len(initBytes) == inPortDataLen)         
+         assert(len(initBytes) == inPortDataLen)
          maxItemsPerLine=32
          remain=len(initBytes)
-         while(remain>0):            
+         while(remain>0):
             if remain>maxItemsPerLine:
                numItems,last=maxItemsPerLine,False
             else:
@@ -424,23 +472,23 @@ class NodeGenerator:
                code.append(' '*indentStep+', '.join(initBytes[0:numItems])+',')
             del initBytes[0:numItems]
             remain=len(initBytes)
-         code.append('};')      
-         code.append(C.blank(1))       
+         code.append('};')
+         code.append(C.blank(1))
          code.append(C.statement(inDatabuf))
          code.append(C.statement(C.variable('m_inPortDirtyFlags','uint8_t', static=True, array='APX_OUT_PORT_DATA_LEN')))
       else:
          inDatabuf,inInitData = None,None
-      
+
       code.append(C.statement(C.variable('m_nodeData','apx_nodeData_t',static=True)))
       code.append(C.line('static const char *m_apxDefinitionData='))
       for line in nodeText.split('\n'):
          line=line.replace('"','\\"')
-         code.append(C.line('"%s\\n"'%line))         
+         code.append(C.line('"%s\\n"'%line))
       code.elements[-1].val+=';'
       code.append(C.blank(1))
 
 
-      
+
       code.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
       code.append(C.line('// GLOBAL FUNCTIONS'))
       code.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
@@ -458,7 +506,7 @@ class NodeGenerator:
          args.extend(['&m_inPortdata[0]', '&m_inPortDirtyFlags[0]', 'APX_IN_PORT_DATA_LEN'])
       else:
          args.extend(['0','0','0'])
-      if outPortDataLen>0:         
+      if outPortDataLen>0:
          args.extend(['&m_outPortdata[0]', '&m_outPortDirtyFlags[0]', 'APX_OUT_PORT_DATA_LEN'])
       else:
          args.extend(['0','0','0'])
@@ -466,67 +514,55 @@ class NodeGenerator:
       body.append(C.line('#ifdef APX_POLLED_DATA_MODE', indent=0))
       body.append(C.statement('rbfs_create(&m_outPortDataCmdQueue, &m_outPortDataCmdBuf[0], APX_NUM_OUT_PORTS, APX_DATA_WRITE_CMD_SIZE)'))
       body.append(C.line('#endif', indent=0))
-               
+
       sourceFile.code.append(body)
       sourceFile.code.append(C.blank(1))
-    
+
       sourceFile.code.append(nodeDataFunc)
       body=C.block(innerIndent=indentStep)
-      
+
       body.append(C.statement('return &m_nodeData'))
       sourceFile.code.append(body)
       sourceFile.code.append(C.blank(1))
-    
+
       for port in node.requirePorts:
          signalInfo = signalInfoMap['require'][port.name]
-         sourceFile.code.append(signalInfo.func)         
+         sourceFile.code.append(signalInfo.func)
          body,packLen=self.genPackUnpackFunc(signalInfo.func, inDatabuf, signalInfo.offset, signalInfo.operation, signalInfo.dsg, indent, indentStep)
          code.append(body)
          code.append(C.blank())
       for port in node.providePorts:
          signalInfo = signalInfoMap['provide'][port.name]
-         sourceFile.code.append(signalInfo.func)         
+         sourceFile.code.append(signalInfo.func)
          body,packLen=self.genPackUnpackFunc(signalInfo.func, outDatabuf, signalInfo.offset, signalInfo.operation, signalInfo.dsg, indent, indentStep)
          code.append(body)
          code.append(C.blank())
-      
+
       if self.InPortDataNotifyFunc is not None:
          code.append(self.InPortDataNotifyFunc)
          indent+=indentStep
          body=C.block(innerIndent=indent)
-#         body.append(C.line('uint32_t endOffset=offset+len;',indent=indent))
-#         body.append(C.statement('(void) arg'))         
-#         body.append(C.blank())
-         # body.append(C.line('while(offset < endOffset)',indent=indent))
-         # body.append(C.line('{',indent=indent))
-         # indent+=indentStep
-         # 
-         # body.append(C.line('switch(offset)',indent=indent))
-         # body.append(C.line('{',indent=indent))
-         # for port in node.requirePorts:
-         #    signal = signalInfoMap['require'][port.name]
-         #    tmp = (['APX',self.name.upper(), 'OFFSET',port.name.upper()])
-         #    if self.name.upper().startswith('APX'):
-         #       del tmp[0]  
-         #    identifier = '_'.join(tmp)
-         #    body.append(C.line('case %s:'%identifier,indent=indent))            
-         #    indent+=indentStep
-         #    body.append(C.line('///TODO: if a callback function has been registered, call it here',indent=indent))
-         #    body.append(C.statement(C.fcall('printf',['"%s\\n"'%port.name]), indent=indent))
-         #    body.append(C.statement('offset+=%du'%signal.pack_len,indent=indent))
-         #    indent-=indentStep
-         #    body.append(C.statement('break',indent=indent))
-         # body.append(C.line('default:',indent=indent))         
-         # body.append(C.statement('offset=endOffset; //breaks out of while-loop',indent=indent+indentStep))
-         # body.append(C.line('}',indent=indent))
-         # indent-=indentStep
-         # body.append(C.line('}',indent=indent)) 
 
-   
-   
+         if len(self.callbacks.code_fragments)>0:
+            body.append(C.line('struct data_tag'))
+            body.append(C.line('{'))
+            indent+=indentStep
+            for key in sorted(self.callbacks.data_vars.keys()):
+               body.append(C.statement(self.callbacks.data_vars[key], indent=indent))
+            indent-=indentStep
+            body.append(C.statement('} data'))
+            body.append('')
+            body.append(C.line('switch(offset)'))
+            switch_body = C.block(innerIndent=indent)
+            for key in sorted(self.callbacks.code_fragments.keys()):
+               lines = [indent*C.indentChar+x for x in self.callbacks.code_fragments[key].lines()]
+               switch_body.extend(lines)
+            switch_body.append(C.line('default:', indent=indent))
+            body.append(switch_body)
+
          code.append(body)
          indent-=indentStep
-                  
+
       code.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
       code.append(C.line('// LOCAL FUNCTIONS'))
       code.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
@@ -534,7 +570,7 @@ class NodeGenerator:
          code.append('''static void outPortData_writeCmd(apx_offset_t offset, apx_size_t len )
 {
    if ( (m_outPortDirtyFlags[offset] == 0) && (true == apx_nodeData_isOutPortDataOpen(&m_nodeData) ) )
-   {      
+   {
       m_outPortDirtyFlags[offset] = (uint8_t) 1u;
       apx_nodeData_unlockOutPortData(&m_nodeData);
       apx_nodeData_outPortDataNotify(&m_nodeData, (uint32_t) offset, (uint32_t) len);
@@ -544,9 +580,23 @@ class NodeGenerator:
 }
 
 
-''')      
+''')
       fp.write(str(sourceFile))
-    
+
+   def _writeCallbackPrototypes(self, fp, guard):
+
+      headerFile=C.hfile(None, guard=guard)
+      code = headerFile.code
+      code.append(C.blank(1))
+      code.extend(_genCommentHeader('INCLUDES'))
+      code.append(C.include('Rte_Type.h'))
+
+      code.append(C.blank(1))
+      code.extend(_genCommentHeader('FUNCTION PROTOTYPES'))
+      for func in self.callbacks.functions:
+         code.append(C.statement(func))
+      fp.write(str(headerFile))
+
 
 class ComSendReceiveFunction:
    def __init__(self, portName, dataType, upperLayerFunc, lowerLayerFunc):
@@ -556,13 +606,13 @@ class ComSendReceiveFunction:
       self.innerFunc = lowerLayerFunc
       self.innerIndent = 3
       self.var = C.variable('m_'+portName, dataType.name, static=True)
-   
+
 
 class ComSendFunction(ComSendReceiveFunction):
    def __init__(self, portName, dataType, upperLayerFunc, lowerLayerFunc):
       super().__init__(portName, dataType, upperLayerFunc, lowerLayerFunc)
       self._generateBody()
-   
+
    def _generateBody(self):
       self.body = C.block(innerIndent = self.innerIndent)
       self.body.append(C.line('if (%s != %s)'%(self.func.args[0].name, self.var.name)))
@@ -577,10 +627,10 @@ class ComReceiveFunction(ComSendReceiveFunction):
    def __init__(self, portName, dataType, upperLayerFunc, lowerLayerFunc):
       super().__init__(portName, dataType, upperLayerFunc, lowerLayerFunc)
       self._generateBody()
-   
+
    def _generateBody(self):
       self.body = C.block(innerIndent = self.innerIndent)
-      self.body.append(C.statement(C.fcall(self.innerFunc.name, [self.func.args[0].name])))      
+      self.body.append(C.statement(C.fcall(self.innerFunc.name, [self.func.args[0].name])))
       self.body.append(C.statement('return E_OK'));
 
 class ComGenerator:
@@ -592,8 +642,8 @@ class ComGenerator:
       self.innerIndent=3
       self.includes = []
       self.createAPI()
-      
-      
+
+
    def createAPI(self):
       for name in sorted(self.config.send.keys()):
          signal = self.config.send[name]
@@ -601,11 +651,11 @@ class ComGenerator:
       for name in sorted(self.config.receive.keys()):
          signal = self.config.receive[name]
          self.createReceiveFunction(signal.name, signal.dataType)
-   
-   def createSendFunction(self, signal_name, dataType):      
+
+   def createSendFunction(self, signal_name, dataType):
       upperLayerFunc = C.function('ApxCom_Send_'+signal_name, 'Std_ReturnType')
-      isPointer = True if dataType.isComplexType else False      
-      upperLayerFunc.add_arg(C.variable('value', dataType.name, pointer=isPointer))      
+      isPointer = True if dataType.isComplexType else False
+      upperLayerFunc.add_arg(C.variable('value', dataType.name, pointer=isPointer))
       lowerLayerFunc = None
       for node in self.apx_context.nodes:
          for apx_port in node.requirePorts + node.providePorts:
@@ -623,10 +673,10 @@ class ComGenerator:
       self.upperLayerAPI['send'].append(info)
       self.localVars.append(info.var)
 
-   def createReceiveFunction(self, signal_name, dataType):      
+   def createReceiveFunction(self, signal_name, dataType):
       upperLayerFunc = C.function('ApxCom_Receive_'+signal_name, 'Std_ReturnType')
       isPointer = True
-      upperLayerFunc.add_arg(C.variable('value', dataType.name, pointer=isPointer))      
+      upperLayerFunc.add_arg(C.variable('value', dataType.name, pointer=isPointer))
       lowerLayerFunc = None
       for node in self.apx_context.nodes:
          for apx_port in node.requirePorts + node.providePorts:
@@ -643,8 +693,8 @@ class ComGenerator:
       info = ComReceiveFunction(signal_name, dataType, upperLayerFunc, lowerLayerFunc)
       self.upperLayerAPI['receive'].append(info)
       self.localVars.append(info.var)
-      
-      
+
+
    def generateHeader(self, path):
       hfile = C.hfile(path)
       code = hfile.code
@@ -657,14 +707,14 @@ class ComGenerator:
       code.extend(self._genUpperLayerPrototypes())
       with open(path, "w") as fp:
          fp.write(str(hfile))
-      
-   
+
+
    def _genUpperLayerPrototypes(self):
       code = C.sequence()
       for info in self.upperLayerAPI['send'] + self.upperLayerAPI['receive']:
          code.append(C.statement(info.func))
       return code
-   
+
    def generateSource(self, path):
       file = C.cfile(path)
       code = file.code
@@ -672,12 +722,12 @@ class ComGenerator:
       code.append(C.blank(1))
       code.extend(_genCommentHeader('CONSTANTS AND DATA TYPES'))
       code.append(C.blank(1))
-      code.extend(_genCommentHeader('LOCAL FUNCTION PROTOTYPES'))      
-      code.extend(self._writeLocalVars())      
-      code.extend(self._generateGlobalFunctionsSource())      
+      code.extend(_genCommentHeader('LOCAL FUNCTION PROTOTYPES'))
+      code.extend(self._writeLocalVars())
+      code.extend(self._generateGlobalFunctionsSource())
       with open(path, "w") as fp:
          fp.write(str(file))
-   
+
    def _writeIncludes(self):
       code = C.sequence()
       code.extend(_genCommentHeader('INCLUDES'))
@@ -693,7 +743,7 @@ class ComGenerator:
       for var in self.localVars:
          code.append(C.statement(var))
       return code
-   
+
    def _generateGlobalFunctionsSource(self):
       code = C.sequence()
       code.append(C.blank(1))
