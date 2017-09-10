@@ -1,3 +1,4 @@
+__version__ = "0.1.4"
 from apx.node import *
 from apx.base import *
 from apx.file import *
