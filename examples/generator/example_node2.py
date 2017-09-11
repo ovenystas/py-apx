@@ -18,20 +18,24 @@ def create_autosar_workspace():
    dataTypes.createIntegerDataType('Percent_T', min=0, max=255, offset=0, scaling=0.4, unit='Percent')
    dataTypes.createIntegerDataType('VehicleSpeed_T', min=0, max=65535, offset=0, scaling=1/64, unit='km/h')
    dataTypes.createIntegerDataType('EngineSpeed_T', min=0, max=65535, offset=0, scaling=1/8, unit='rpm')
+   dataTypes.createIntegerDataType('Seconds_T', min=0, max=63, offset=0, scaling=1, unit='Seconds')
    constants = ws.getConstantPackage()
    constants.createConstant('C_EngineRunningStatus_IV', 'OffOn_T', 3)
    constants.createConstant('C_FuelLevelPercent_IV', 'Percent_T', 255)
    constants.createConstant('C_VehicleSpeed_IV', 'VehicleSpeed_T', 65535)
    constants.createConstant('C_EngineSpeed_IV', 'EngineSpeed_T', 0)
+   constants.createConstant('C_Rtc_Seconds_IV', 'Seconds_T', 63)
    portInterfaces = ws.getPortInterfacePackage()
    portInterfaces.createSenderReceiverInterface('EngineRunningStatus_I', autosar.DataElement('EngineRunningStatus', 'OffOn_T'))
    portInterfaces.createSenderReceiverInterface('FuelLevelPercent_I', autosar.DataElement('FuelLevelPercent', 'Percent_T'))
    portInterfaces.createSenderReceiverInterface('VehicleSpeed_I', autosar.DataElement('VehicleSpeed', 'VehicleSpeed_T'))
    portInterfaces.createSenderReceiverInterface('EngineSpeed_I', autosar.DataElement('EngineSpeed','EngineSpeed_T'))
+   portInterfaces.createSenderReceiverInterface('Rtc_Seconds_I', autosar.DataElement('Rtc_Seconds','Seconds_T'))
    components = ws.getComponentTypePackage()
    swc = components.createApplicationSoftwareComponent('Example2')
    swc.createProvidePort('EngineRunningStatus', 'EngineRunningStatus_I', initValueRef=constants['C_EngineRunningStatus_IV'].ref)
    swc.createProvidePort('VehicleSpeed', 'VehicleSpeed_I', initValueRef=constants['C_VehicleSpeed_IV'].ref)
+   swc.createRequirePort('Rtc_Seconds', 'Rtc_Seconds_I', initValueRef=constants['C_Rtc_Seconds_IV'].ref)
    swc.createRequirePort('FuelLevelPercent', 'FuelLevelPercent_I', initValueRef=constants['C_FuelLevelPercent_IV'].ref)
    swc.createRequirePort('EngineSpeed', 'EngineSpeed_I', initValueRef=constants['C_EngineSpeed_IV'].ref)
    swc.behavior.createRunnable(swc.name+'_Init', portAccess=[x.name for x in swc.providePorts])
@@ -55,9 +59,9 @@ def create_apx_context(ws):
          node = apx.Node().import_autosar_swc(swc)
          context.append(node)
    return context
-   
+
 def generate_apx_node(context, derived_dir):
-   node_generator = apx.NodeGenerator()   
+   node_generator = apx.NodeGenerator()
    node = context.nodes[0]
    callback_map = {'FuelLevelPercent': node.name+'_FuelLevelPercent_Cbk',
                    'EngineSpeed': node.name+'_EngineSpeed_Cbk'}

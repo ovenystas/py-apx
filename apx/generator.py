@@ -67,7 +67,7 @@ class CallbackInfo:
    """
    def __init__(self, indent=3):
       self.local_types = {}
-      self.defines = {}
+      self.defines = {'offset':{}, 'length':{}}
       self.code_fragments = {}
       self.data_vars = None
       self.isFinalized = False
@@ -75,17 +75,22 @@ class CallbackInfo:
       self.indent = indent
       self.functions = []
 
-   def create(self, port_info, callback_name):
+   def create(self, port_info, callback_name=None):
       """
-      creates a new callback mapping. variable info must be of type SignalInfo
+      Creates a new callback mapping. variable info must be of type SignalInfo.
+      When callback_name is None, no user-defined callback is generated
       """
-      type_name = port_info.func.args[0].typename
-      if (type_name not in self.local_types):
-         self.local_types[type_name] = []
-      self.local_types[type_name].append(port_info.name)
-      port_define = C.define("APX_RX_OFFSET_%s"%(port_info.name.upper()), port_info.offset)
-      self.defines[port_info.name] = port_define
-      self.pending.append((port_info, callback_name, type_name, port_define))
+      type_name=None
+      if callback_name is not None:
+         type_name = port_info.func.args[0].typename
+         if (type_name not in self.local_types):
+            self.local_types[type_name] = []
+         self.local_types[type_name].append(port_info.name)
+      port_offset_define = C.define("APX_RX_OFFSET_%s"%(port_info.name.upper()), port_info.offset)
+      port_length_define = C.define("APX_RX_LEN_%s"%(port_info.name.upper()), port_info.pack_len)
+      self.defines['offset'][port_info.name] = port_offset_define
+      self.defines['length'][port_info.name] = port_length_define
+      self.pending.append((port_info, callback_name, type_name, port_offset_define, port_length_define))
 
 
    def finalize(self):
@@ -102,16 +107,19 @@ class CallbackInfo:
       self.isFinalized = True
 
 
-   def _generate_code_fragment(self, port_info, callback_name, type_name, port_define):
+   def _generate_code_fragment(self, port_info, callback_name, type_name, port_offset_define, port_length_define):
       code = C.sequence()
-      var = self.data_vars[type_name]
-      code.append(C.line('case %s:'%port_define.left))
-      code.append(C.statement('(void) %s(&data.%s)'%(port_info.func.name, var.name), indent=self.indent))
-      modifier='&' if port_info.dsg.isComplexType() else ''
-      code.append(C.statement(C.fcall(callback_name, [modifier+'data.'+var.name]), indent=self.indent))
+      code.append(C.line('case %s:'%port_offset_define.left))
+      if callback_name is not None:
+         var = self.data_vars[type_name]
+         code.append(C.statement('(void) %s(&data.%s)'%(port_info.func.name, var.name), indent=self.indent))
+         modifier='&' if port_info.dsg.isComplexType() else ''
+         code.append(C.statement(C.fcall(callback_name, [modifier+'data.'+var.name]), indent=self.indent))
+      code.append(C.statement('offset += %s'%port_length_define.left, indent=self.indent))
       code.append(C.statement('break', indent=self.indent))
       self.code_fragments[port_info.offset]=code
-      self.functions.append(C.function(callback_name, 'void', args=[C.variable('value', type_name, pointer=port_info.dsg.isComplexType())]))
+      if callback_name is not None:
+         self.functions.append(C.function(callback_name, 'void', args=[C.variable('value', type_name, pointer=port_info.dsg.isComplexType())]))
 
 class NodeGenerator:
    """
@@ -292,6 +300,8 @@ class NodeGenerator:
       self.prefixed_name = prefixed_name
       self.includes=includes
       self.callback_list = []
+      self.has_callbacks = True if (callbacks is not None) else False
+
       #require ports (in ports)
       for port in node.requirePorts:
          is_pointer=False
@@ -304,8 +314,11 @@ class NodeGenerator:
          if port.attr is not None:
             initValue = port.attr.initValue
          info = SignalInfo(port.name,offset,packLen,func,port.dsg.resolveType(),'unpack', initValue)
-         if (callbacks is not None) and (port.name in callbacks):
-            self.callbacks.create(info, callbacks[port.name])
+         if self.has_callbacks:
+            if port.name in callbacks:
+               self.callbacks.create(info, callbacks[port.name])
+            else:
+               self.callbacks.create(info, None)
          signalInfoList.append(info)
          signalInfoMap['require'][port.name]=info
          inPortDataLen+=packLen
@@ -333,10 +346,10 @@ class NodeGenerator:
       self.outPortDataLen=outPortDataLen
       header_filename = os.path.normpath(os.path.join(output_dir, self.prefixed_name+'.h'))
       source_filename = os.path.normpath(os.path.join(output_dir, self.prefixed_name+'.c'))
-      callback_path,callback_file=None,None      
+      callback_path,callback_file=None,None
       if len(self.callbacks.functions)>0:
          callback_file = self.prefixed_name+'_Cbk.h'
-         callback_path = os.path.normpath(os.path.join(output_dir, callback_file))         
+         callback_path = os.path.normpath(os.path.join(output_dir, callback_file))
          with open(callback_path, "w") as fp:
             self._writeCallbackPrototypes(fp, prefixed_name.upper()+'_CBK_H')
       with open(header_filename, "w") as fp:
@@ -406,8 +419,11 @@ class NodeGenerator:
       code.append(C.define('APX_DEFINITON_LEN', str(len(nodeText)+1)+'u')) #add 1 for empty newline
       code.append(C.define('APX_IN_PORT_DATA_LEN', str(inPortDataLen)+'u'))
       code.append(C.define('APX_OUT_PORT_DATA_LEN', str(outPortDataLen)+'u'))
-      if len(self.callbacks.defines)>0:
-         for define in sorted(self.callbacks.defines.values(), key=lambda x: x.right):
+      if len(self.callbacks.defines['length'])>0:
+         for define in sorted(self.callbacks.defines['length'].values(), key=lambda x: x.right):
+            code.append(str(define))
+      if len(self.callbacks.defines['offset'])>0:
+         for define in sorted(self.callbacks.defines['offset'].values(), key=lambda x: x.right):
             code.append(str(define))
 
       code.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
@@ -551,14 +567,25 @@ class NodeGenerator:
                body.append(C.statement(self.callbacks.data_vars[key], indent=indent))
             indent-=indentStep
             body.append(C.statement('} data'))
+            end_offset_var = C.variable('endOffset', 'uint32_t')
+            init_expression = '%s + %s'%(self.InPortDataNotifyFunc.args[2].name,self.InPortDataNotifyFunc.args[3].name)
+            body.append(C.statement(str(end_offset_var)+' = '+ init_expression ))
             body.append('')
-            body.append(C.line('switch(offset)'))
-            switch_body = C.block(innerIndent=indent)
+            body.append(C.line('while (offset < endOffset)'))
+            body.append(C.line('{'))
+            indent+=indentStep
+            body.append(C.line('switch(offset)', indent=indent))
+            switch_body = C.block(indent=indent)
             for key in sorted(self.callbacks.code_fragments.keys()):
                lines = [indent*C.indentChar+x for x in self.callbacks.code_fragments[key].lines()]
                switch_body.extend(lines)
             switch_body.append(C.line('default:', indent=indent))
+            indent+=indentStep
+            switch_body.append(C.statement('offset = endOffset', indent=indent))
+            indent-=indentStep
             body.append(switch_body)
+            body.append(C.line('}'))
+            indent-=indentStep
 
          code.append(body)
          indent-=indentStep
