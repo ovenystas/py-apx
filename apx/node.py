@@ -145,6 +145,7 @@ class Node:
          self.add_autosar_port(port, ws)
       for port in swc.requirePorts:
          self.add_autosar_port(port, ws)
+      return self
    
    def add_autosar_port(self, port, ws=None):
       """
@@ -247,9 +248,22 @@ class Node:
       for dataType in mirror.dataTypes:
          mirror.dataTypeMap[dataType.name]=dataType
       return mirror
-   def find(self, name):
+   
+   def find(self, name):      
       """
       finds type or port by name
+      """
+      if isinstance(name, list):
+         result = []
+         for inner_name in name:
+            result.append(self._inner_find(inner_name))
+         return result
+      else:
+         return self._inner_find(name)
+   
+   def _inner_find(self, name):
+      """
+      finds type or port by name (internal implementation)
       """
       for elem in self.dataTypes+self.requirePorts+self.providePorts:
          if elem.name == name:

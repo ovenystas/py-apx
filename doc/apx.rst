@@ -281,59 +281,35 @@ NodeGenerator
 
 APX Node generator for `c-apx <https://github.com/cogu/c-apx>`_ (both full c-apx and apx-es nodes are supported).
 
-.. py:method :: NodeGenerator.generate(node, header_fp, source_fp, name=None, includes=None):
+.. py:method :: NodeGenerator.generate(self, output_dir, node, name=None, includes=None, callbacks=None):
 
 Arguments:
   
+  * output_dir: directory where source and header files will be written. If you want direct the output to current directory, use '.' as argument.
   * node : an Instance of *apx.Node*
-  * header_fp: The C header is written into this open file object. (Caller must open the file before calling this method.)
-  * source_fp: The C source is written into this open file object. (Caller must open the file before calling this method.)
   * name (optional): This argument can be used to override the name of the node. Default behavior is to use the name from the node object.
-  * includes (optional): A List of extra includes to add to the default list of includes in the header file.
+  * includes (optional): A list of extra includes to add to the default list of includes in the header file.
+  * callbacks (optional): A dictionary where the key is a require port names and its value is the name of the C function to call (when a new value has been received).
 
-  If you are generating an APX node containing AUTOSAR data type name, make sure that "Rte_Type.h" is added to the list of extra includes in the includes argument.
+  If you are generating an APX node containing AUTOSAR data type name, make sure to include "Rte_Type.h" in the includes argument list.
 
-Example::
+Example 1::
+
+   import apx
+   
+   node = apx.Node('TestNode')
+   node.append(apx.ProvidePort('TestSignal2','C'))
+   node.append(apx.RequirePort('TestSignal1','S'))   
+   apx.NodeGenerator().generate('.', node, includes=['Rte_Type.h'])
+   
+Example 2 (with callbacks)::
 
    import apx
    
    node = apx.Node('TestNode')
    node.append(apx.ProvidePort('TestSignal2','C'))
    node.append(apx.RequirePort('TestSignal1','S'))
+   callback_map={'TestSignal1': 'TestSignal1_CallbackFunc'}      
+   apx.NodeGenerator().generate('.', node, includes=['Rte_Type.h'], callbacks=callback_map)
    
-   header_fp = open('Apx_TestNode.h', 'w')
-   source_fp = open('Apx_TestNode.c', 'w')
-   
-   apx.NodeGenerator().generate(node, header_fp, source_fp, includes=['Rte_Type.h'])
-   
-   header_fp.close()
-   source_fp.close()
-   
-   with open('Apx_TestNode.h') as fp:
-      print(fp.read())
 
-Output:
-
-.. code-block:: C
-
-   #ifndef APX_TESTNODE_H
-   #define APX_TESTNODE_H
-   
-   #include "apx_nodeData.h"
-   #include "Rte_Type.h"
-   
-   //////////////////////////////////////////////////////////////////////////////
-   // CONSTANTS
-   //////////////////////////////////////////////////////////////////////////////
-   
-   //////////////////////////////////////////////////////////////////////////////
-   // FUNCTION PROTOTYPES
-   //////////////////////////////////////////////////////////////////////////////
-   void Apx_TestNode_init(void);
-   apx_nodeData_t * Apx_TestNode_getNodeData(void);
-   
-   Std_ReturnType Apx_TestNode_Read_TestSignal1(sint16 *val);
-   Std_ReturnType Apx_TestNode_Write_TestSignal2(uint8 val);
-   void Apx_TestNode_inPortDataWritten(void *arg, apx_nodeData_t *nodeData, uint32_t offset, uint32_t len);
-   
-   #endif //APX_TESTNODE_H
