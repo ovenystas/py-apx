@@ -12,8 +12,8 @@ def test_suite():
     return suite		
 		
 setup(name='apx',
-      version='0.1.4',
-      description='A framework for sending AUTOSAR signal data to non-AUTOSAR applications',
+      version='0.1.5',
+      description='Official APX python toolchain and client',
       long_description=readme(),
       classifiers=[
         'Development Status :: 3 - Alpha',
@@ -25,11 +25,11 @@ setup(name='apx',
       author_email='congus8@gmail.com',
       license='MIT',
 	  install_requires=[
-		  'autosar>=0.3.0'
+		  'autosar>=0.3.3'
       ],
       packages=['apx','remotefile'],
       py_modules=['numheader'],
 	  test_suite = 'tests',
-	  dependency_links=['https://github.com/cogu/autosar/archive/v0.3.0.tar.gz#egg=autosar-0.3.0'],
+	  dependency_links=['https://github.com/cogu/autosar/archive/v0.3.3.tar.gz#egg=autosar-0.3.3'],
 	  zip_safe=False)
 	  
