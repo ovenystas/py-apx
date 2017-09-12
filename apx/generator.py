@@ -560,7 +560,7 @@ class NodeGenerator:
          body=C.block(innerIndent=indent)
 
          if len(self.callbacks.code_fragments)>0:
-            body.append(C.line('struct data_tag'))
+            body.append(C.line('union data_tag'))
             body.append(C.line('{'))
             indent+=indentStep
             for key in sorted(self.callbacks.data_vars.keys()):
