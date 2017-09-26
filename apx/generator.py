@@ -110,10 +110,11 @@ class NodeGenerator:
    APX Node generator for c-apx and apx-es
    """
 
-   def __init__(self):
+   def __init__(self, record_elem_suffix=None):
       self.includes=None
       self.InPortDataNotifyFunc=None
       self.callbacks=CallbackInfo()
+      self.record_elem_suffix = record_elem_suffix if record_elem_suffix is not None else ''
 
    def generate(self, output_dir, node, name=None, includes=None, callbacks=None):
       """
@@ -271,12 +272,11 @@ class NodeGenerator:
             if 'bufptr' not in localvar:
                localvar['bufptr']=C.variable('p','uint8',pointer=True)
             for elem in dsg.data['elements']:
-               if isinstance(val,C.variable):
-                  #TODO: replace following lines with call to user hook that instead applies the _RE-rule to record elements
+               if isinstance(val,C.variable):                  
                   if val.pointer:
-                     childName="%s->%s_RE"%(valname,elem['name'])
+                     childName="%s->%s%s"%(valname, elem['name'], self.record_elem_suffix)
                   else:
-                     childName="%s.%s_RE"%(valname,elem['name'])
+                     childName="%s.%s%s"%(valname,elem['name'], self.record_elem_suffix)
                elif isinstance(val,str):
                   childName="%s.%s"%(valname,elem['name'])
                assert(elem is not None)
@@ -655,7 +655,7 @@ class ComGenerator:
          body.append(C.line('if (%s != %s)'%(com_func.proto.args[0].name, local_var.inner.name)))
       inner_body = C.block(innerIndent=self.inner_indent)      
       if com_func.data_element.dataType.isComplexType:
-         inner_body.append(C.statement('memcpy(%s, %s, sizeof(%s)'%(var_modifier+local_var.name, com_func.proto.args[0].name, local_var.inner.name)))
+         inner_body.append(C.statement('memcpy(%s, %s, sizeof(%s))'%(var_modifier+local_var.inner.name, com_func.proto.args[0].name, local_var.inner.name)))
       else:
          inner_body.append(C.statement('%s = %s'%(local_var.inner.name, com_func.proto.args[0].name)))
       apx_call = C.statement(C.fcall('ApxNode_Write_%s_%s'%(self.apx_node.name,com_func.port.name), params=[var_modifier+local_var.inner.name]))

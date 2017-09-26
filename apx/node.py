@@ -11,7 +11,7 @@ def _getIntegerTypeCode(dataType):
    """
    global args
    if dataType.minVal >= 0:
-      bits = _calcUIntTypeLen(dataType)      
+      bits = _calcUIntTypeLen(dataType)
       if bits <=8:
          if (dataType.minVal>0) or (dataType.maxVal<255):
             return 'C(%d,%d)'%(dataType.minVal,dataType.maxVal)
@@ -45,8 +45,7 @@ def _calcUIntTypeLen(dataType):
    type value.
    """
    if isinstance(dataType,autosar.datatype.IntegerDataType):
-      if dataType.minVal == 0:
-         return int(math.ceil(math.log(dataType.maxVal,2)))
+      return int(math.ceil(math.log(dataType.maxVal,2)))
    return None
 
 def _calcIntTypeLen(dataType):
@@ -54,8 +53,7 @@ def _calcIntTypeLen(dataType):
    same as _calcUIntTypeLen but for signed integers
    """
    if isinstance(dataType,autosar.datatype.IntegerDataType):
-      if dataType.minval < 0:
-         return int(math.ceil(math.log(abs(dataType.maxVal),2)))+1
+      return int(math.ceil(math.log(abs(dataType.maxVal),2)))+1            
    return None
 
 class Node:
