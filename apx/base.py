@@ -1,12 +1,13 @@
 import autosar
 import math
 import re
+import sys
 
 
-def match_pair(s,left,right):   
+def match_pair(s,left,right):
    if (len(s)>0) and (s[0]==left):
       count=1
-      for i in range(1,len(s)):            
+      for i in range(1,len(s)):
          if s[i]==right:
             count-=1
             if count==0:
@@ -15,7 +16,7 @@ def match_pair(s,left,right):
             count+=1 #nested pair
       return (None,"")
    return (None,s)
-      
+
 def parse_str(s):
    return match_pair(s,'"','"')
 
@@ -48,7 +49,7 @@ class Port:
       self.name = name            #name of the port
       self.dsg = DataSignature(dataSignature)
       self.attr = PortAttribute(attributes) if attributes is not None else None
-    
+
    def __str__(self):
       if self.attr is not None:
          dsg=str(self.dsg)
@@ -57,7 +58,7 @@ class Port:
       else:
          return '%s"%s"%s'%(self.portType, self.name, str(self.dsg))
 
-     
+
 class RequirePort(Port):
    """
    APX require port
@@ -77,7 +78,7 @@ class ProvidePort(Port):
    def mirror(self):
       return RequirePort(self.name, str(self.dsg), str(self.attr) if self.attr is not None else None)
 
-     
+
 class DataType:
    """
    APX datatype
@@ -86,13 +87,13 @@ class DataType:
       self.name = name
       self.dsg = DataSignature(dataSignature, self)
       self.attr = attributes
-   
+
    def __str__(self):
       if self.attr is not None:
          return 'T"%s"%s:%s'%(self.name, str(self.dsg), str(self.attr))
       else:
          return 'T"%s"%s'%(self.name, str(self.dsg))
-  
+
 class DataSignature:
    """
    APX Datasignature
@@ -107,22 +108,22 @@ class DataSignature:
       elif isinstance(dsg, dict):
          self.data=dsg
          self.str=None
-      else:         
+      else:
          raise NotImplementedError(type(dsg))
       self.parent=parent
       self.structFmtStr=None
       self._conversionTable={'a':'s', 'c':'b', 's':'h','l':'I', #conversion table from APX type codes into python struct format characters
                                 'u':'q', 'C':'B', 'S':'H','L':'I',
                                 'U':'Q'}
-      
+
    def __str__(self):
       return self.str
-     
+
    def packLen(self,typeList=None):
       result=0
-      stack = []      
+      stack = []
       i = iter([self.data])
-      
+
       while True:
          try:
             node = next(i)
@@ -138,7 +139,7 @@ class DataSignature:
          else:
             elemSize=self.calcElemSize(node,typeList)
             result+=elemSize
-               
+
       return result
 
    def calcElemSize(self,node,typeList):
@@ -159,10 +160,10 @@ class DataSignature:
             elemSize+=self.calcElemSize(elem,typeList)
       if node['isArray']:
          return elemSize*node['arrayLen']
-      else:      
+      else:
          return elemSize
-      
-      
+
+
    def ctypename(self,typeList=None):
       """
       Returns the C type name of the data signature as a string. This return value can be used for code generation in C/C++ code.
@@ -199,17 +200,93 @@ class DataSignature:
             obj=self.typeList[self.data['refId']].dsg
          else:
             raise ValueError('no typelist avaliable')
-         
+
       else:
          obj=self
       return obj
+
+   def calcStructFmtStr(self, typeList=None, byteOrder='<'):
+      """
+      returns python struct format string
+      """
+      result= []
+      stack = []
+      i = iter([self.data])
+      while True:
+         try:
+            elem = next(i)
+         except StopIteration:
+            try:
+               i = stack.pop()
+               continue
+            except IndexError:
+               break
+         if elem['type']=='record':
+            stack.append(i)
+            i=iter(elem['elements'])
+         else:
+            fmt=self._deriveStructFormatStringElem(elem,typeList)
+            result.append(fmt)
+      self.structFmtStr=byteOrder+''.join(result)
+      return self.structFmtStr
+
+   def createInitData(self, init_value):
+      data = bytearray()
+      if (self.data['type'] == 'record'):
+         if (init_value['type'] != 'record'):            
+            raise ValueError('invalid init value type: got %s, expected string'%(init_value['type']))
+         if len(init_value['elements']) != len(self.data['elements']):
+            raise ValueError('Incorrect number of record elements in init_value: got %d, expected %s'%(len(init_value['elements']), len(self.data['elements'])))
+         for i,dsg_elem in enumerate(self.data['elements']):               
+            result = DataSignature._createInitDataInner(dsg_elem, init_value['elements'][i])
+            data.extend(result)
+      else:
+         result = DataSignature._createInitDataInner(self.data, init_value)
+         data.extend(result)
+      return data
+   
+   @staticmethod
+   def _createInitDataInner(dsg_elem, init_value):
+      data = bytearray()
+      if (dsg_elem['type'] == 'record'):
+         raise NotImplementedError('record')
+      elif (dsg_elem['type']=='a'):
+            if (init_value['type'] != 'string'):
+               raise ValueError('invalid init value type: got %s, expected string'%(init_value['type']))
+            if len(init_value['value']) > dsg_elem['arrayLen']:
+               print('Warning: init value "%s" will be truncated to %d bytes'%(init_value['value'], dsg_elem['arrayLen']), file=sys.stderr)
+            for i in range(dsg_elem['arrayLen']):
+               if i<len(init_value['value']):
+                  data.append(ord(init_value['value'][i]))
+               else:
+                  data.append(0)               
+      elif (dsg_elem['type'] in ['c', 'C', 's', 'S', 'l', 'L']):
+         if init_value['type'] != 'integer':
+            raise ValueError('invalid init value type: got %s, expected integer'%(init_value['type']))
+         if dsg_elem['type']=='C' or dsg_elem['type']=='c':
+            data.append(int(init_value['value']) & 0xFF)
+         elif dsg_elem['type']=='S' or dsg_elem['type']=='s':
+            #TODO: implement big endian support
+            data.append(int(init_value['value']) & 0xFF)
+            data.append(int(init_value['value'])>>8 & 0xFF)
+         elif dsg_elem['type']=='L' or dsg_elem['type']=='l':
+            #TODO: implement big endian support
+            data.append(int(init_value['value']) & 0xFF)
+            data.append(int(init_value['value'])>>8 & 0xFF)
+            data.append(int(init_value['value'])>>16 & 0xFF)
+            data.append(int(init_value['value'])>>24 & 0xFF)
+         else:
+            raise NotImplementedError(dsg_elem['type'])
+      else:
+         raise NotImplementedError(dsg_elem['type'])
+      return data
 
    @staticmethod
    def _parseRecordSignature(remain):
       elements=[]
       while len(remain)>0:
          (name,remain)=match_pair(remain,'"','"')
-         if len(remain)>0:            
+         if len(remain)>0:
             (elem,remain)=DataSignature._parseDataSignature(remain)
             if elem == None:
                if remain[0] == '}':
@@ -220,7 +297,7 @@ class DataSignature:
                elem['name']=name
                elements.append(elem)
       return (None,remain)
-   
+
    @staticmethod
    def _parseExtendedTypeCode(c,data):
       values=re.split(r'\s*,\s*',data)
@@ -228,17 +305,17 @@ class DataSignature:
          raise Exception("min,max missing from %s"%data)
       attr = {'min':int(values[0]),'max':int(values[1])}
       return {'type':c,'isArray':False,'attr':attr}
-   
-   @staticmethod   
+
+   @staticmethod
    def _parseDataSignature(s):
       remain=s
-      c=remain[0]      
-      if c=='{': #start of record 
+      c=remain[0]
+      if c=='{': #start of record
          remain = remain[1:]
-         return DataSignature._parseRecordSignature(remain)      
-      if c=='T': #typeRef         
+         return DataSignature._parseRecordSignature(remain)
+      if c=='T': #typeRef
          (data,remain2)=match_pair(remain[1:],'[',']')
-         if data!=None and len(remain2)==0:            
+         if data!=None and len(remain2)==0:
             return({'type':'typeRef','refId':int(data)},remain2)
          else:
             raise Exception("parse failure '%s'"%remain)
@@ -256,33 +333,8 @@ class DataSignature:
                return (DataSignature._parseExtendedTypeCode(c,data),remain)
          else:
             remain=remain[1:]
-            return ({'type':c,'isArray':False},remain)         
-   
-   def calcStructFmtStr(self, typeList=None, byteOrder='<'):
-      """
-      returns python struct format string
-      """
-      result= []
-      stack = []      
-      i = iter([self.data])
-      while True:
-         try:
-            elem = next(i)
-         except StopIteration:
-            try:
-               i = stack.pop()
-               continue
-            except IndexError:
-               break
-         if elem['type']=='record':
-            stack.append(i)
-            i=iter(elem['elements'])
-         else:
-            fmt=self._deriveStructFormatStringElem(elem,typeList)
-            result.append(fmt)         
-      self.structFmtStr=byteOrder+''.join(result)
-      return self.structFmtStr
-   
+            return ({'type':c,'isArray':False},remain)
+
    def _deriveStructFormatStringElem(self, elem, typeList=None):
       if elem['type'] in self._conversionTable:
          formatCharacter=self._conversionTable[elem['type']]
@@ -295,20 +347,53 @@ class DataSignature:
          raise NotImplementedError(elem['type'])
       if elem['isArray']:
          return "%d%s"%(elem['arrayLen'],formatCharacter)
-      else:      
+      else:
          return formatCharacter
-   
+
 class PortAttribute:
    """
    Port attributes are attributes declared on a line starting with either 'R' or 'P'
-   """   
+   """
    _p2=re.compile(r'0x([0-9A-Fa-f]+)|(\d+)|"([^"]*)"')
    _p3=re.compile(r'\[(\d+)\]')
-   def _parseInitValue(self,remain):      
-      remain=remain.lstrip()   
+
+   def __init__(self,text):
+      self.isQueued=False
+      self.isParameter=False
+      self.queueLength=None
+      self.initValue=None
+      self.str = str(text)
+      if text==None or len(text)==0:
+         return
+      remain=text
+      while len(remain)>0:
+         remain=remain.lstrip()
+         if remain.startswith('='):
+            remain=remain[1:]
+            (initValue,remain)=self._parseInitValue(remain)
+            self.initValue=initValue
+         elif remain.startswith('Q'):
+            self.isQueued=True
+            remain=remain[1:]
+            m=PortAttribute._p3.match(remain)
+            if m:
+               self.queueLength=m.group(1)
+               remain=remain[m.end():]
+            break
+         elif remain.startswith('P'):
+            self.isParameter=True
+            remain=remain[1:]
+         else:
+            raise SyntaxError
+
+   def __str__(self):
+      return self.str
+
+   def _parseInitValue(self,remain):
+      remain=remain.lstrip()
       if remain.startswith('{'):
          (match,remain2)=match_pair(remain,'{','}')
-         elements=[]         
+         elements=[]
          while len(match)>0:
             match=match.lstrip()
             (elem,match)=self._parseInitValue(match)
@@ -325,46 +410,14 @@ class PortAttribute:
          m=PortAttribute._p2.match(remain)
          if m:
             remain=remain[m.end():]
-            if m.group(1):
+            if m.group(1) is not None:
                return ({'type': 'integer', 'value': int(m.group(1),16)},remain)
-            elif m.group(2):
+            elif m.group(2) is not None:
                return ({'type': 'integer', 'value': int(m.group(2),10)},remain)
-            elif m.group(3):
+            elif m.group(3) is not None:
                return ({'type': 'string', 'value': m.group(3)},remain)
-      return (None,remain)         
+      return (None,remain)
 
-   
-   def __init__(self,text):
-      self.isQueued=False
-      self.isParameter=False
-      self.queueLength=None
-      self.initValue=None
-      self.str = str(text)
-      if text==None or len(text)==0:
-         return
-      remain=text
-      while len(remain)>0:
-         remain=remain.lstrip()
-         if remain.startswith('='):
-            remain=remain[1:]
-            (initValue,remain)=self._parseInitValue(remain)
-            self.initValue=initValue            
-         elif remain.startswith('Q'):
-            self.isQueued=True
-            remain=remain[1:]
-            m=ApxPortAttribute._p3.match(remain)
-            if m:
-               self.queueLength=m.group(1)
-               remain=remain[m.end():]
-            break
-         elif remain.startswith('P'):
-            self.isParameter=True
-            remain=remain[1:]
-         else:
-            raise SyntaxError
-   def __str__(self):
-      return self.str
-   
 class TypeAttribute(object):
    """
    Type attributes are attributes declared on a line starting with letter 'T'
@@ -376,7 +429,7 @@ class TypeAttribute(object):
          return
       remain = text
       while len(remain)>0:
-         if remain.startswith('VT('):            
+         if remain.startswith('VT('):
             (result,remain) = match_pair(remain[2:],'(',')')
             if result == None:
                raise SyntaxError

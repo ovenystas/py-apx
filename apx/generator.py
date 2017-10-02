@@ -20,12 +20,12 @@ class SignalInfo:
       self.pack_len=pack_len
       self.init_value=init_value
       self.func=func
-      self.dsg=dsg
-      self.init_data = bytearray()
+      self.dsg=dsg      
 
       if init_value is not None:
-         self.genInitData(dsg, init_value)
+         self.init_data = dsg.createInitData(init_value)
       else:
+         self.init_data = bytearray()
          self.init_data.extend([0 for x in range(self.pack_len)])
 
       assert(len(self.init_data)==self.pack_len)
@@ -35,31 +35,6 @@ class SignalInfo:
       else:
          raise ValueError("operation: invalid parameter value '%s', expected 'pack' or 'unpack'"%operation)
 
-   def genInitData(self, dsg, init_value):
-      if (init_value['type'] == 'record'):
-         if (dsg.data['type'] == 'record'):
-            #not yet implemented
-            print("warning: init value for %s not yet implemented, adding zeros"%self.name, file=sys.stderr)
-            self.init_data.extend([0 for x in range(self.pack_len)])
-         else:
-            raise ValueError('expected init_value to have record type')
-      else:
-         if dsg.data['type']=='C' or dsg.data['type']=='c':
-            self.init_data.append(int(init_value['value']) & 0xFF)
-         elif dsg.data['type']=='S' or dsg.data['type']=='s':
-            #TODO: implement big endian support
-            self.init_data.append(int(init_value['value']) & 0xFF)
-            self.init_data.append(int(init_value['value'])>>8 & 0xFF)
-         elif dsg.data['type']=='L' or dsg.data['type']=='l':
-            #TODO: implement big endian support
-            self.init_data.append(int(init_value['value']) & 0xFF)
-            self.init_data.append(int(init_value['value'])>>8 & 0xFF)
-            self.init_data.append(int(init_value['value'])>>16 & 0xFF)
-            self.init_data.append(int(init_value['value'])>>24 & 0xFF)
-         else:
-            #not yet implemented
-            print("warning: init value for %s not yet implemented, adding zeros"%self.name, file=sys.stderr)
-            self.init_data.extend([0 for x in range(self.pack_len)])
 
 class CallbackInfo:
    """
