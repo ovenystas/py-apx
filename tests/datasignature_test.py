@@ -4,6 +4,7 @@ import apx
 import unittest
 
 class TestDataSignature(unittest.TestCase):
+    
     def test_create_init_data_u8(self):
         dsg = apx.base.DataSignature('C')
         
@@ -76,7 +77,7 @@ class TestDataSignature(unittest.TestCase):
         (first, second, third) = (b'\xFF', b'\xFF\xFF', b'\xFF\xFF\xFF\xFF')
         self.assertEqual(first+second+third, bytes(data))
     
-    def test_create_string_init_data(self):
+    def test_create_init_data_string(self):
         dsg = apx.base.DataSignature('a[6]')
         
         attr = apx.base.PortAttribute('=""')
@@ -99,6 +100,50 @@ class TestDataSignature(unittest.TestCase):
         data = dsg.createInitData(attr.initValue)
         self.assertEqual(b'AaA\x00\x00\x00', bytes(data))
 
+    def test_create_init_data_arrayU8(self):
+        dsg = apx.base.DataSignature('C[2]')
+        
+        attr = apx.base.PortAttribute('={1,2}')
+        data = dsg.createInitData(attr.initValue)
+        self.assertEqual(b'\x01\x02', bytes(data))
 
+        attr = apx.base.PortAttribute('={0,0}')
+        data = dsg.createInitData(attr.initValue)
+        self.assertEqual(b'\x00\x00', bytes(data))
+
+        attr = apx.base.PortAttribute('={0xFF, 0xFF}')
+        data = dsg.createInitData(attr.initValue)
+        self.assertEqual(b'\xFF\xFF', bytes(data))
+
+    def test_create_init_data_arrayU16(self):
+        dsg = apx.base.DataSignature('S[3]')
+        
+        attr = apx.base.PortAttribute('={0x100,0x1234,0x60}')
+        data = dsg.createInitData(attr.initValue)
+        self.assertEqual(b'\x00\x01\x34\x12\x60\x00', bytes(data))
+
+        attr = apx.base.PortAttribute('={0,0,0}')
+        data = dsg.createInitData(attr.initValue)
+        self.assertEqual(b'\x00\x00\x00\x00\x00\x00', bytes(data))
+
+        attr = apx.base.PortAttribute('={0xFFFF, 0xFFFF, 0xFFFF}')
+        data = dsg.createInitData(attr.initValue)
+        self.assertEqual(b'\xFF\xFF\xFF\xFF\xFF\xFF', bytes(data))
+
+    def test_create_init_data_arrayU32(self):
+        dsg = apx.base.DataSignature('L[2]')
+        
+        attr = apx.base.PortAttribute('={0x12345678, 0x630001}')
+        data = dsg.createInitData(attr.initValue)
+        self.assertEqual(b'\x78\x56\x34\x12\x01\x00\x63\x00', bytes(data))
+
+        attr = apx.base.PortAttribute('={0,0}')
+        data = dsg.createInitData(attr.initValue)
+        self.assertEqual(b'\x00\x00\x00\x00\x00\x00\x00\x00', bytes(data))
+
+        attr = apx.base.PortAttribute('={0xFFFFFFFF, 0xFFFFFFFF}')
+        data = dsg.createInitData(attr.initValue)
+        self.assertEqual(b'\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF', bytes(data))
+        
 if __name__ == '__main__':
     unittest.main()

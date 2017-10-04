@@ -233,20 +233,18 @@ class DataSignature:
    def createInitData(self, init_value):
       data = bytearray()
       if (self.data['type'] == 'record'):
-         if (init_value['type'] != 'record'):            
-            raise ValueError('invalid init value type: got %s, expected string'%(init_value['type']))
+         if (init_value['type'] != 'record'):
+            raise ValueError('invalid init value type: got %s, expected record'%(init_value['type']))
          if len(init_value['elements']) != len(self.data['elements']):
             raise ValueError('Incorrect number of record elements in init_value: got %d, expected %s'%(len(init_value['elements']), len(self.data['elements'])))
-         for i,dsg_elem in enumerate(self.data['elements']):               
-            result = DataSignature._createInitDataInner(dsg_elem, init_value['elements'][i])
-            data.extend(result)
+         for i,dsg_elem in enumerate(self.data['elements']):
+            data.extend(DataSignature._createInitDataInner(dsg_elem, init_value['elements'][i]))
       else:
-         result = DataSignature._createInitDataInner(self.data, init_value)
-         data.extend(result)
+         data.extend(DataSignature._createInitDataInner(self.data, init_value))
       return data
-   
+
    @staticmethod
-   def _createInitDataInner(dsg_elem, init_value):
+   def _createInitDataInner(dsg_elem, init_value, is_array_elem=False):
       data = bytearray()
       if (dsg_elem['type'] == 'record'):
          raise NotImplementedError('record')
@@ -259,24 +257,30 @@ class DataSignature:
                if i<len(init_value['value']):
                   data.append(ord(init_value['value'][i]))
                else:
-                  data.append(0)               
+                  data.append(0)
       elif (dsg_elem['type'] in ['c', 'C', 's', 'S', 'l', 'L']):
-         if init_value['type'] != 'integer':
-            raise ValueError('invalid init value type: got %s, expected integer'%(init_value['type']))
-         if dsg_elem['type']=='C' or dsg_elem['type']=='c':
-            data.append(int(init_value['value']) & 0xFF)
-         elif dsg_elem['type']=='S' or dsg_elem['type']=='s':
-            #TODO: implement big endian support
-            data.append(int(init_value['value']) & 0xFF)
-            data.append(int(init_value['value'])>>8 & 0xFF)
-         elif dsg_elem['type']=='L' or dsg_elem['type']=='l':
-            #TODO: implement big endian support
-            data.append(int(init_value['value']) & 0xFF)
-            data.append(int(init_value['value'])>>8 & 0xFF)
-            data.append(int(init_value['value'])>>16 & 0xFF)
-            data.append(int(init_value['value'])>>24 & 0xFF)
+         if (dsg_elem['isArray']) and (not is_array_elem):
+            if (init_value['type'] != 'record'):
+               raise ValueError('invalid init value type: got %s, expected record'%(init_value['type']))
+            for init_elem in init_value['elements']:
+               data.extend(DataSignature._createInitDataInner(dsg_elem, init_elem, True))
          else:
-            raise NotImplementedError(dsg_elem['type'])
+            if init_value['type'] != 'integer':
+               raise ValueError('invalid init value type: got %s, expected integer'%(init_value['type']))
+            if dsg_elem['type']=='C' or dsg_elem['type']=='c':
+               data.append(int(init_value['value']) & 0xFF)
+            elif dsg_elem['type']=='S' or dsg_elem['type']=='s':
+               #TODO: implement big endian support
+               data.append(int(init_value['value']) & 0xFF)
+               data.append(int(init_value['value'])>>8 & 0xFF)
+            elif dsg_elem['type']=='L' or dsg_elem['type']=='l':
+               #TODO: implement big endian support
+               data.append(int(init_value['value']) & 0xFF)
+               data.append(int(init_value['value'])>>8 & 0xFF)
+               data.append(int(init_value['value'])>>16 & 0xFF)
+               data.append(int(init_value['value'])>>24 & 0xFF)
+            else:
+               raise NotImplementedError(dsg_elem['type'])
       else:
          raise NotImplementedError(dsg_elem['type'])
       return data
