@@ -22,11 +22,15 @@ class File(remotefile.File):
    
    In the C implementation this type is called apx_file_t.
    """
-   def __init__(self, name, length):
+   def __init__(self, name, length, init_data=None):
       super().__init__(name, length)
       self.data = bytearray(length)
       self.dataLock = threading.Lock()
       self.fileManager = None
+      if init_data is not None:
+         if len(init_data) != length:
+            raise ValueError('Length of init_data must be equal to length argument')         
+         self.data[0:length]=init_data
 
    def read(self, offset: int, length: int):
       """
@@ -59,8 +63,8 @@ class InputFile(File):
    """
    An APX input file. when written to, it notifies the upper layer (NodeDataHandler) about the change
    """
-   def __init__(self, name, length):
-      super().__init__(name, length)
+   def __init__(self, name, length, init_data=None):
+      super().__init__(name, length, init_data)
       self.nodeDataHandler=None
    
    def write(self, offset: int, data: bytes, more_bit : bool):      
@@ -77,10 +81,9 @@ class OutputFile(File):
    """
    An APX output file. when written to, it notifies the lower layer (FileManager) about the change
    """
-   def __init__(self, name, length):
-      super().__init__(name, length)
-      
-      
+   def __init__(self, name, length, init_data=None):
+      super().__init__(name, length, init_data)
+            
    def write(self, offset: int, data: bytes):
       retval = super().write(offset, data)
       if (retval >=0) and (self.fileManager is not None) and (self.isOpen==True):

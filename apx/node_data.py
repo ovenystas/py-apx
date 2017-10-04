@@ -6,7 +6,7 @@ from collections import namedtuple
 PortMapRange = namedtuple('PortMapRange', "startOffset endOffset port")
 
 class NodeDataClient(metaclass=abc.ABCMeta):
-   @abc.abstractmethod   
+   @abc.abstractmethod
    def onRequirePortData(self, node, portId, portName, data):
       """
       called by apx.NodeData when a require port has updated its data
@@ -18,10 +18,10 @@ class NodeData():
    """
    APX NodeData class
    """
-   
+
    def __init__(self,node):
       parser = apx.Parser()
-      if isinstance(node, apx.Node):         
+      if isinstance(node, apx.Node):
           self.node=node
           context=apx.Context()
           context.append(node)
@@ -31,7 +31,7 @@ class NodeData():
          self.node = parser.loads(apx_text)
       else:
          raise NotImplementedError(type(node))
-      
+
       self.name=self.node.name
       self.inPortDataMap = []
       self.outPortDataMap = []
@@ -41,53 +41,65 @@ class NodeData():
       if self.inPortDataFile is not None:
          self.inPortDataFile.nodeDataHandler=self
       self.nodeDataClient=None
-         
-         
-   def _createInPortDataFile(self, node):      
+
+
+   def _createInPortDataFile(self, node):
       offset=0
+      init_data = bytearray()
       for port in node.requirePorts:
+         dsg_resolved = port.dsg.resolveType(node.dataTypes)
          packLen = port.dsg.packLen(node.dataTypes)
          port.dsg.calcStructFmtStr(node.dataTypes)
          self.inPortDataMap.append(PortMapRange(offset, offset+packLen, port))
          offset+=packLen
-      fileLen=offset
-      if fileLen > 0:
-         file = apx.InputFile(node.name+'.in', fileLen)
-         #TODO: implement support for init values
+         if port.attr is not None and port.attr.initValue is not None:
+            init_data.extend(dsg_resolved.createInitData(port.attr.initValue))
+         else:
+            init_data.extend(bytes(packLen)) #initialize with zeros if no init value has been selected
+      file_len=offset
+      assert(len(init_data)==file_len)
+      if file_len > 0:
+         file = apx.InputFile(node.name+'.in', file_len, init_data)         
          return file
       return None
 
    def _createOutPortDataFile(self, node):
       offset=0
+      init_data = bytearray()
       for port in node.providePorts:
+         dsg_resolved = port.dsg.resolveType(node.dataTypes)
          packLen = port.dsg.packLen(node.dataTypes)
          port.dsg.calcStructFmtStr(node.dataTypes)
          self.outPortDataMap.append(PortMapRange(offset, offset+packLen, port))
          offset+=packLen
-      fileLen=offset
-      if fileLen > 0:
-         file = apx.OutputFile(node.name+'.out', fileLen)
-         #TODO: implement support for init values
+         if port.attr is not None and port.attr.initValue is not None:
+            init_data.extend(dsg_resolved.createInitData(port.attr.initValue))
+         else:
+            init_data.extend(bytes(packLen)) #initialize with zeros if no init value has been selected         
+      file_len=offset
+      assert(len(init_data)==file_len)
+      if file_len > 0:
+         file = apx.OutputFile(node.name+'.out', file_len, init_data)         
          return file
       return None
 
-   
+
    def _createDefinitionFile(self, node_name, apx_text):
-      file = apx.OutputFile(node_name+'.apx', len(apx_text))      
+      file = apx.OutputFile(node_name+'.apx', len(apx_text))
       file.write(0,bytes(apx_text, encoding='ascii'))
       return file
-      
+
    def inPortDataWriteNotify(self, file, offset: int, data : bytes):
       """
       Called by FileManager when it receives a remote write in the node's inPortData file
-      """      
+      """
       if self.nodeDataClient is not None:
          startOffset=offset
          endOffset=offset+len(data)
          while offset<endOffset:
             found=False
             for portId,elem in enumerate(self.inPortDataMap):
-               if elem.startOffset <= offset < elem.endOffset:                  
+               if elem.startOffset <= offset < elem.endOffset:
                   offset=elem.endOffset
                   found=True
                   value = self._unpackRequirePort(elem.port, data[elem.startOffset-startOffset:elem.endOffset-startOffset])
@@ -95,7 +107,7 @@ class NodeData():
                   break
             if found == False:
                break
-         
+
    def writeProvidePort(self, portId, value):
       port = self.node.providePorts[portId]
       portMapElem = self.outPortDataMap[portId]
@@ -112,9 +124,9 @@ class NodeData():
       else:
          assert(len(dsg.structFmtStr)==2)
          data = struct.pack(dsg.structFmtStr,value)
-         self.outPortDataFile.write(portMapElem.startOffset, data)      
-   
-   def _unpackRequirePort(self, port, data):            
+         self.outPortDataFile.write(portMapElem.startOffset, data)
+
+   def _unpackRequirePort(self, port, data):
       assert(port.dsg.structFmtStr is not None and len(port.dsg.structFmtStr)>0)
       dsg = port.dsg.resolveType(self.node.dataTypes)
       if dsg.data['type'] == 'record':
@@ -129,4 +141,4 @@ class NodeData():
          assert(len(port.dsg.structFmtStr)==2)
          (value,) = struct.unpack(port.dsg.structFmtStr,data)
          return value
-      
+
