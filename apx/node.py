@@ -80,6 +80,14 @@ class Node:
       self.providePorts=[]
       self.dataTypeMap = {}      
    
+   @classmethod
+   def from_autosar_swc(cls, swc, name=None, reverse=False):
+      assert(isinstance(swc, autosar.component.AtomicSoftwareComponent))
+      node = cls()
+      node.import_autosar_swc(swc, name=name)
+      return node
+         
+   
    def _updateDataType(self, ws, port):
       portInterface = ws.find(port.portInterfaceRef)
       if isinstance(portInterface,autosar.portinterface.SenderReceiverInterface):
@@ -144,6 +152,8 @@ class Node:
       for port in swc.requirePorts:
          self.add_autosar_port(port, ws)
       return self
+   
+   
    
    def add_autosar_port(self, port, ws=None):
       """
