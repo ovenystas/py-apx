@@ -116,7 +116,7 @@ class NodeGenerator:
       self.callbacks=CallbackInfo()
       self.record_elem_suffix = record_elem_suffix if record_elem_suffix is not None else ''
 
-   def generate(self, output_dir, node, name=None, includes=None, callbacks=None):
+   def generate(self, output_dir, node, name=None, includes=None, callbacks=None, header_dir=None):
       """
       generates APX node layer for single APX node
 
@@ -131,6 +131,8 @@ class NodeGenerator:
          includes: optional list of additional include files,
 
          callbacks: optional dict of require port callbacks (key: port name, value: name of C callback function)
+         
+         header_dir: optional directory where to redirect header generation (instead of output_dir)
 
       """
       signalInfoList=[]
@@ -148,7 +150,10 @@ class NodeGenerator:
       self.includes=includes
       self.callback_list = []
       self.has_callbacks = True if (callbacks is not None) else False
-
+      
+      source_dir = output_dir
+      if header_dir is None:
+         header_dir=source_dir
       #require ports (in ports)
       for port in node.requirePorts:
          is_pointer=False
@@ -191,12 +196,12 @@ class NodeGenerator:
       self.callbacks.finalize()
       self.inPortDataLen=inPortDataLen
       self.outPortDataLen=outPortDataLen
-      header_filename = os.path.normpath(os.path.join(output_dir, self.prefixed_name+'.h'))
-      source_filename = os.path.normpath(os.path.join(output_dir, self.prefixed_name+'.c'))
+      header_filename = os.path.normpath(os.path.join(header_dir, self.prefixed_name+'.h'))
+      source_filename = os.path.normpath(os.path.join(source_dir, self.prefixed_name+'.c'))
       callback_path,callback_file=None,None
       if len(self.callbacks.functions)>0:
          callback_file = self.prefixed_name+'_Cbk.h'
-         callback_path = os.path.normpath(os.path.join(output_dir, callback_file))
+         callback_path = os.path.normpath(os.path.join(header_dir, callback_file))
          with open(callback_path, "w") as fp:
             self._writeCallbackPrototypes(fp, prefixed_name.upper()+'_CBK_H')
       with open(header_filename, "w") as fp:
