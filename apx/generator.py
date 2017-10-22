@@ -3,6 +3,7 @@ import apx.context
 import cfile as C
 import sys
 import autosar
+import autosar.constant
 import os
 
 def _genCommentHeader(comment):
@@ -12,6 +13,14 @@ def _genCommentHeader(comment):
    lines.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
    return lines
 
+
+# def autosar_constant_to_initializer(constant):
+#    if constant is None:
+#       return ''
+#    elif isinstance(constant, autosar.constant.IntegerValue):
+#       return '%d'%(int(constant.value))
+#    else:
+#       raise NotImplementedError(str(type(constant)))
 
 class SignalInfo:
    def __init__(self, name,offset, pack_len, func, dsg, operation, init_value=None):
@@ -101,10 +110,104 @@ class NodeGenerator:
    APX Node generator for c-apx and apx-es
    """
 
-   def __init__(self):
+   def __init__(self, record_elem_suffix=None):
       self.includes=None
       self.InPortDataNotifyFunc=None
       self.callbacks=CallbackInfo()
+      self.record_elem_suffix = record_elem_suffix if record_elem_suffix is not None else ''
+
+   def generate(self, output_dir, node, name=None, includes=None, callbacks=None, header_dir=None):
+      """
+      generates APX node layer for single APX node
+
+      parameters:
+
+         node: APX node object
+
+         output_dir: directory where to generate header and source files
+
+         name: Can be used to override the name of the APX node. Default is
+
+         includes: optional list of additional include files,
+
+         callbacks: optional dict of require port callbacks (key: port name, value: name of C callback function)
+         
+         header_dir: optional directory where to redirect header generation (instead of output_dir)
+
+      """
+      signalInfoList=[]
+      signalInfoMap={'require':{}, 'provide':{}}
+      inPortDataLen=0
+      outPortDataLen=0
+      offset=0
+      if name is None:
+         prefixed_name='ApxNode_'+node.name
+         name = node.name
+      else:
+         prefixed_name='ApxNode_'+name
+      self.name=name
+      self.prefixed_name = prefixed_name
+      self.includes=includes
+      self.callback_list = []
+      self.has_callbacks = True if (callbacks is not None) else False
+      
+      source_dir = output_dir
+      if header_dir is None:
+         header_dir=source_dir
+      #require ports (in ports)
+      for port in node.requirePorts:
+         is_pointer=False
+         func = C.function("ApxNode_Read_%s_%s"%(name,port.name),"Std_ReturnType")
+         is_pointer=True
+         func.add_arg(C.variable('val',port.dsg.ctypename(node.dataTypes),pointer=is_pointer))
+         packLen=port.dsg.packLen(node.dataTypes)
+         port.dsg.typeList=node.dataTypes
+         initValue=None
+         if port.attr is not None:
+            initValue = port.attr.initValue
+         info = SignalInfo(port.name,offset,packLen,func,port.dsg.resolveType(),'unpack', initValue)
+         if self.has_callbacks:
+            if port.name in callbacks:
+               self.callbacks.create(info, callbacks[port.name])
+            else:
+               self.callbacks.create(info, None)
+         signalInfoList.append(info)
+         signalInfoMap['require'][port.name]=info
+         inPortDataLen+=packLen
+         offset+=packLen
+      #provide ports (out ports)
+      offset=0
+      for port in node.providePorts:
+         is_pointer=False
+         func = C.function("ApxNode_Write_%s_%s"%(name,port.name),"Std_ReturnType")
+         if port.dsg.isComplexType(node.dataTypes) and not port.dsg.isArray(node.dataTypes):
+            is_pointer=True
+         func.add_arg(C.variable('val',port.dsg.ctypename(node.dataTypes),pointer=is_pointer))
+         packLen=port.dsg.packLen(node.dataTypes)
+         port.dsg.typeList= node.dataTypes
+         initValue=None
+         if port.attr is not None:
+            initValue = port.attr.initValue
+         tmp = SignalInfo(port.name,offset,packLen,func,port.dsg.resolveType(),'pack',initValue)
+         signalInfoList.append(tmp)
+         signalInfoMap['provide'][port.name]=tmp
+         outPortDataLen+=packLen
+         offset+=packLen
+      self.callbacks.finalize()
+      self.inPortDataLen=inPortDataLen
+      self.outPortDataLen=outPortDataLen
+      header_filename = os.path.normpath(os.path.join(header_dir, self.prefixed_name+'.h'))
+      source_filename = os.path.normpath(os.path.join(source_dir, self.prefixed_name+'.c'))
+      callback_path,callback_file=None,None
+      if len(self.callbacks.functions)>0:
+         callback_file = self.prefixed_name+'_Cbk.h'
+         callback_path = os.path.normpath(os.path.join(header_dir, callback_file))
+         with open(callback_path, "w") as fp:
+            self._writeCallbackPrototypes(fp, prefixed_name.upper()+'_CBK_H')
+      with open(header_filename, "w") as fp:
+         (initFunc,nodeDataFunc) = self._writeHeaderFile(fp, signalInfoList, signalInfoMap, prefixed_name.upper()+'_H', node)
+      with open(source_filename, "w") as fp:
+         self._writeSourceFile(fp,signalInfoMap,initFunc,nodeDataFunc, node, inPortDataLen, outPortDataLen, callback_file)
 
    def genPackUnpackInteger(self, code, buf, operation, valname, dsg, localvar, offset, indent):
       dataLen=0
@@ -174,12 +277,11 @@ class NodeGenerator:
             if 'bufptr' not in localvar:
                localvar['bufptr']=C.variable('p','uint8',pointer=True)
             for elem in dsg.data['elements']:
-               if isinstance(val,C.variable):
-                  #TODO: replace following lines with call to user hook that instead applies the _RE-rule to record elements
+               if isinstance(val,C.variable):                  
                   if val.pointer:
-                     childName="%s->%s_RE"%(valname,elem['name'])
+                     childName="%s->%s%s"%(valname, elem['name'], self.record_elem_suffix)
                   else:
-                     childName="%s.%s_RE"%(valname,elem['name'])
+                     childName="%s.%s%s"%(valname,elem['name'], self.record_elem_suffix)
                elif isinstance(val,str):
                   childName="%s.%s"%(valname,elem['name'])
                assert(elem is not None)
@@ -244,93 +346,6 @@ class NodeGenerator:
       indent-=indentStep
       return code,packLen
 
-   def generate(self, output_dir, node, name=None, includes=None, callbacks=None):
-      """
-      generates APX node layer for single APX node
-
-      parameters:
-
-         node: APX node object
-
-         output_dir: directory where to generate header and source files
-
-         name: Can be used to override the name of the APX node. Default is
-
-         includes: optional list of additional include files,
-
-         callbacks: optional dict of require port callbacks (key: port name, value: name of C callback function)
-
-      """
-      signalInfoList=[]
-      signalInfoMap={'require':{}, 'provide':{}}
-      inPortDataLen=0
-      outPortDataLen=0
-      offset=0
-      if name is None:
-         prefixed_name='ApxNode_'+node.name
-         name = node.name
-      else:
-         prefixed_name='ApxNode_'+name
-      self.name=name
-      self.prefixed_name = prefixed_name
-      self.includes=includes
-      self.callback_list = []
-      self.has_callbacks = True if (callbacks is not None) else False
-
-      #require ports (in ports)
-      for port in node.requirePorts:
-         is_pointer=False
-         func = C.function("ApxNode_Read_%s_%s"%(name,port.name),"Std_ReturnType")
-         is_pointer=True
-         func.add_arg(C.variable('val',port.dsg.ctypename(node.dataTypes),pointer=is_pointer))
-         packLen=port.dsg.packLen(node.dataTypes)
-         port.dsg.typeList=node.dataTypes
-         initValue=None
-         if port.attr is not None:
-            initValue = port.attr.initValue
-         info = SignalInfo(port.name,offset,packLen,func,port.dsg.resolveType(),'unpack', initValue)
-         if self.has_callbacks:
-            if port.name in callbacks:
-               self.callbacks.create(info, callbacks[port.name])
-            else:
-               self.callbacks.create(info, None)
-         signalInfoList.append(info)
-         signalInfoMap['require'][port.name]=info
-         inPortDataLen+=packLen
-         offset+=packLen
-      #provide ports (out ports)
-      offset=0
-      for port in node.providePorts:
-         is_pointer=False
-         func = C.function("ApxNode_Write_%s_%s"%(name,port.name),"Std_ReturnType")
-         if port.dsg.isComplexType(node.dataTypes) and not port.dsg.isArray(node.dataTypes):
-            is_pointer=True
-         func.add_arg(C.variable('val',port.dsg.ctypename(node.dataTypes),pointer=is_pointer))
-         packLen=port.dsg.packLen(node.dataTypes)
-         port.dsg.typeList= node.dataTypes
-         initValue=None
-         if port.attr is not None:
-            initValue = port.attr.initValue
-         tmp = SignalInfo(port.name,offset,packLen,func,port.dsg.resolveType(),'pack',initValue)
-         signalInfoList.append(tmp)
-         signalInfoMap['provide'][port.name]=tmp
-         outPortDataLen+=packLen
-         offset+=packLen
-      self.callbacks.finalize()
-      self.inPortDataLen=inPortDataLen
-      self.outPortDataLen=outPortDataLen
-      header_filename = os.path.normpath(os.path.join(output_dir, self.prefixed_name+'.h'))
-      source_filename = os.path.normpath(os.path.join(output_dir, self.prefixed_name+'.c'))
-      callback_path,callback_file=None,None
-      if len(self.callbacks.functions)>0:
-         callback_file = self.prefixed_name+'_Cbk.h'
-         callback_path = os.path.normpath(os.path.join(output_dir, callback_file))
-         with open(callback_path, "w") as fp:
-            self._writeCallbackPrototypes(fp, prefixed_name.upper()+'_CBK_H')
-      with open(header_filename, "w") as fp:
-         (initFunc,nodeDataFunc) = self._writeHeaderFile(fp, signalInfoList, signalInfoMap, prefixed_name.upper()+'_H', node)
-      with open(source_filename, "w") as fp:
-         self._writeSourceFile(fp,signalInfoMap,initFunc,nodeDataFunc, node, inPortDataLen, outPortDataLen, callback_file)
 
 
    def _writeHeaderFile(self, fp, signalInfoList, signalInfoMap, guard, node):
@@ -600,125 +615,140 @@ class NodeGenerator:
       fp.write(str(headerFile))
 
 
-class ComSendReceiveFunction:
-   def __init__(self, portName, dataType, upperLayerFunc, lowerLayerFunc):
-      self.portName = portName
-      self.dataType = dataType
-      self.func = upperLayerFunc
-      self.innerFunc = lowerLayerFunc
-      self.innerIndent = 3
-      self.var = C.variable('m_'+portName, dataType.name, static=True)
-
-
-class ComSendFunction(ComSendReceiveFunction):
-   def __init__(self, portName, dataType, upperLayerFunc, lowerLayerFunc):
-      super().__init__(portName, dataType, upperLayerFunc, lowerLayerFunc)
-      self._generateBody()
-
-   def _generateBody(self):
-      self.body = C.block(innerIndent = self.innerIndent)
-      self.body.append(C.line('if (%s != %s)'%(self.func.args[0].name, self.var.name)))
-      block = C.block(innerIndent = self.innerIndent)
-      block.append(C.statement('%s = %s'%(self.var.name, self.func.args[0].name)))
-      block.append(C.statement(C.fcall(self.innerFunc.name, [self.func.args[0].name])))
-      self.body.append(block)
-      self.body.append(C.statement('return E_OK'));
-
-
-class ComReceiveFunction(ComSendReceiveFunction):
-   def __init__(self, portName, dataType, upperLayerFunc, lowerLayerFunc):
-      super().__init__(portName, dataType, upperLayerFunc, lowerLayerFunc)
-      self._generateBody()
-
-   def _generateBody(self):
-      self.body = C.block(innerIndent = self.innerIndent)
-      self.body.append(C.statement(C.fcall(self.innerFunc.name, [self.func.args[0].name])))
-      self.body.append(C.statement('return E_OK'));
-
+class ComVariable:
+   def __init__(self, name, data_type, init_value):      
+      self.initializer = autosar.constant.initializer_string(init_value)
+      self.inner = C.variable(name, data_type.name, static=True)
+   
+   def declaration(self):
+      return C.statement('%s = %s'%(str(self.inner), self.initializer))
+   
+   
 class ComGenerator:
-   def __init__(self, com_config, apx_context):
-      self.config = com_config
-      self.apx_context = apx_context
-      self.upperLayerAPI = {'receive':[], 'send':[]}
-      self.localVars = []
-      self.innerIndent=3
-      self.includes = []
+   def __init__(self, com_component):
+      assert isinstance(com_component, autosar.bsw.com.ComComponent)
+      self.component = com_component
+      self.apx_node = apx.Node().import_autosar_swc(com_component).mirror()      
+      self.local_vars = {}
+      self.inner_indent=3
+      self.header_includes = [('Rte_Type.h', False)]
+      self.header_file = None
+      # self.ar_port_map = {}
+      # self.apx_port_map = {}
+      # 
+      # for port in com_component.requirePorts+com_component.providePorts:
+      #    self.ar_port_map[port.name]=port
+      # for port in apx_node.requirePorts+com_component.providePorts:
+      #    self.apx_port_map[port.name]=port
       self.createAPI()
 
 
    def createAPI(self):
-      for name in sorted(self.config.send.keys()):
-         signal = self.config.send[name]
-         self.createSendFunction(signal.name, signal.dataType)
-      for name in sorted(self.config.receive.keys()):
-         signal = self.config.receive[name]
-         self.createReceiveFunction(signal.name, signal.dataType)
+      for func in self.component.upperLayerAPI.send:         
+         self.createSendBody(func)
+      for func in self.component.upperLayerAPI.receive:
+         self.createReceiveBody(func)
+   
+   def createSendBody(self, com_func):      
+      body = C.block(innerIndent=self.inner_indent)
+      local_var = self._local_var(com_func)
+      if com_func.data_element.dataType.isComplexType:
+         var_modifier = '&'
+         body.append(C.line('if (memcmp(%s, %s, sizeof(%s)) != 0)'%(com_func.proto.args[0].name, var_modifier+local_var.inner.name, local_var.inner.name)))
+      else:
+         var_modifier = ''
+         body.append(C.line('if (%s != %s)'%(com_func.proto.args[0].name, local_var.inner.name)))
+      inner_body = C.block(innerIndent=self.inner_indent)      
+      if com_func.data_element.dataType.isComplexType:
+         inner_body.append(C.statement('memcpy(%s, %s, sizeof(%s))'%(var_modifier+local_var.inner.name, com_func.proto.args[0].name, local_var.inner.name)))
+      else:
+         inner_body.append(C.statement('%s = %s'%(local_var.inner.name, com_func.proto.args[0].name)))
+      apx_call = C.statement(C.fcall('ApxNode_Write_%s_%s'%(self.apx_node.name,com_func.port.name), params=[var_modifier+local_var.inner.name]))
+      inner_body.append(apx_call)
+      body.append(inner_body)
+      body.append(C.statement('return E_OK'))
+      com_func.body = body
 
-   def createSendFunction(self, signal_name, dataType):
-      upperLayerFunc = C.function('ApxCom_Send_'+signal_name, 'Std_ReturnType')
-      isPointer = True if dataType.isComplexType else False
-      upperLayerFunc.add_arg(C.variable('value', dataType.name, pointer=isPointer))
-      lowerLayerFunc = None
-      for node in self.apx_context.nodes:
-         for apx_port in node.requirePorts + node.providePorts:
-            if apx_port.name == signal_name:
-               name = 'ApxNode_Write_%s_%s'%(node.name,apx_port.name)
-               lowerLayerFunc = C.function(name, 'Std_ReturnType')
-               lowerLayerFunc.add_arg(C.variable('val', dataType.name, pointer=isPointer))
-               include_file = 'ApxNode_%s.h'%node.name
-               if include_file not in self.includes:
-                  self.includes.append(include_file)
-               break
-      if lowerLayerFunc is None:
-         raise ValueError('unable to find apx node with port '+signal_name)
-      info = ComSendFunction(signal_name, dataType, upperLayerFunc, lowerLayerFunc)
-      self.upperLayerAPI['send'].append(info)
-      self.localVars.append(info.var)
+   def createReceiveBody(self, com_func):
+      body = C.block(innerIndent=self.inner_indent)
+      apx_call = C.statement(C.fcall('ApxNode_Read_%s_%s'%(self.apx_node.name,com_func.port.name), params=[com_func.proto.args[0].name]))
+      body.append(apx_call)
+      body.append(C.statement('return E_OK'))
+      com_func.body = body
+      
+   def _local_var(self, com_func):
+      var_name = 'm_%s_%s'%(com_func.port.name,com_func.data_element.name) 
+      if var_name not in self.local_vars:
+         local_var = ComVariable(var_name, com_func.data_element.dataType, com_func.data_element.initValue)
+         self.local_vars[var_name]=local_var
+      else:
+         local_var = self.local_vars[var_name]
+      return local_var
+      
+   # def createSendFunction(self, signal_name, dataType):
+   #    upperLayerFunc = C.function('ApxCom_Send_'+signal_name, 'Std_ReturnType')
+   #    isPointer = True if dataType.isComplexType else False
+   #    upperLayerFunc.add_arg(C.variable('value', dataType.name, pointer=isPointer))
+   #    lowerLayerFunc = None
+   #    for node in self.apx_context.nodes:
+   #       for apx_port in node.requirePorts + node.providePorts:
+   #          if apx_port.name == signal_name:
+   #             name = 'ApxNode_Write_%s_%s'%(node.name,apx_port.name)
+   #             lowerLayerFunc = C.function(name, 'Std_ReturnType')
+   #             lowerLayerFunc.add_arg(C.variable('val', dataType.name, pointer=isPointer))
+   #             include_file = 'ApxNode_%s.h'%node.name
+   #             if include_file not in self.includes:
+   #                self.includes.append(include_file)
+   #             break
+   #    if lowerLayerFunc is None:
+   #       raise ValueError('unable to find apx node with port '+signal_name)
+   #    info = ComSendFunction(signal_name, dataType, upperLayerFunc, lowerLayerFunc)
+   #    self.upperLayerAPI['send'].append(info)
+   #    self.localVars.append(info.var)
+   # 
+   # def createReceiveFunction(self, signal_name, dataType):
+   #    upperLayerFunc = C.function('ApxCom_Receive_'+signal_name, 'Std_ReturnType')
+   #    isPointer = True
+   #    upperLayerFunc.add_arg(C.variable('value', dataType.name, pointer=isPointer))
+   #    lowerLayerFunc = None
+   #    for node in self.apx_context.nodes:
+   #       for apx_port in node.requirePorts + node.providePorts:
+   #          if apx_port.name == signal_name:
+   #             name = 'ApxNode_Read_%s_%s'%(node.name,apx_port.name)
+   #             lowerLayerFunc = C.function(name, 'Std_ReturnType')
+   #             lowerLayerFunc.add_arg(C.variable('val', dataType.name, pointer=isPointer))
+   #             include_file = 'ApxNode_%s.h'%node.name
+   #             if include_file not in self.includes:
+   #                self.includes.append(include_file)
+   #             break
+   #    if lowerLayerFunc is None:
+   #       raise ValueError('unable to find apx node with port '+signal_name)
+   #    info = ComReceiveFunction(signal_name, dataType, upperLayerFunc, lowerLayerFunc)
+   #    self.upperLayerAPI['receive'].append(info)
+   #    self.localVars.append(info.var)
 
-   def createReceiveFunction(self, signal_name, dataType):
-      upperLayerFunc = C.function('ApxCom_Receive_'+signal_name, 'Std_ReturnType')
-      isPointer = True
-      upperLayerFunc.add_arg(C.variable('value', dataType.name, pointer=isPointer))
-      lowerLayerFunc = None
-      for node in self.apx_context.nodes:
-         for apx_port in node.requirePorts + node.providePorts:
-            if apx_port.name == signal_name:
-               name = 'ApxNode_Read_%s_%s'%(node.name,apx_port.name)
-               lowerLayerFunc = C.function(name, 'Std_ReturnType')
-               lowerLayerFunc.add_arg(C.variable('val', dataType.name, pointer=isPointer))
-               include_file = 'ApxNode_%s.h'%node.name
-               if include_file not in self.includes:
-                  self.includes.append(include_file)
-               break
-      if lowerLayerFunc is None:
-         raise ValueError('unable to find apx node with port '+signal_name)
-      info = ComReceiveFunction(signal_name, dataType, upperLayerFunc, lowerLayerFunc)
-      self.upperLayerAPI['receive'].append(info)
-      self.localVars.append(info.var)
 
-
-   def generateHeader(self, path):
-      hfile = C.hfile(path)
+   def generateHeader(self, dest_dir = '.', file_name='ApxCom.h'):
+      self.header_file = file_name
+      file_path = os.path.join(dest_dir, file_name)
+      hfile = C.hfile(file_path)
       code = hfile.code
       code.extend(_genCommentHeader('INCLUDES'))
-      code.append(C.include("Rte_Type.h"))
+      for elem in self.header_includes:
+         if isinstance(elem, tuple):
+            code.append(C.include(elem[0], sys=elem[1]))
       code.append(C.blank(1))
       code.extend(_genCommentHeader('CONSTANTS AND DATA TYPES'))
       code.append(C.blank(1))
       code.extend(_genCommentHeader('GLOBAL FUNCTIONS'))
-      code.extend(self._genUpperLayerPrototypes())
-      with open(path, "w") as fp:
+      for com_func in self.component.upperLayerAPI.send+self.component.upperLayerAPI.receive:
+         code.append(C.statement(com_func.proto))
+      with open(file_path, "w") as fp:
          fp.write(str(hfile))
 
-
-   def _genUpperLayerPrototypes(self):
-      code = C.sequence()
-      for info in self.upperLayerAPI['send'] + self.upperLayerAPI['receive']:
-         code.append(C.statement(info.func))
-      return code
-
-   def generateSource(self, path):
-      file = C.cfile(path)
+   def generateSource(self, dest_dir = '.', file_name='ApxCom.c'):
+      file_path = os.path.join(dest_dir, file_name)
+      file = C.cfile(file_path)
       code = file.code
       code.extend(self._writeIncludes())
       code.append(C.blank(1))
@@ -727,30 +757,31 @@ class ComGenerator:
       code.extend(_genCommentHeader('LOCAL FUNCTION PROTOTYPES'))
       code.extend(self._writeLocalVars())
       code.extend(self._generateGlobalFunctionsSource())
-      with open(path, "w") as fp:
+      with open(file_path, "w") as fp:
          fp.write(str(file))
 
    def _writeIncludes(self):
       code = C.sequence()
       code.extend(_genCommentHeader('INCLUDES'))
-      code.append(C.include("Rte_Type.h"))
-      for file_name in self.includes:
-         code.append(C.include(file_name))
+      code.append(C.include("string.h", sys=True))      
+      code.append(C.include(self.header_file))
+      code.append(C.include('ApxNode_%s.h'%self.apx_node.name))
       return code
 
    def _writeLocalVars(self):
       code = C.sequence()
       code.append(C.blank(1))
       code.extend(_genCommentHeader('LOCAL VARIABLES'))
-      for var in self.localVars:
-         code.append(C.statement(var))
+      for local_var in sorted(self.local_vars.values(), key=lambda x: x.inner.name):
+         code.append(local_var.declaration())
       return code
 
    def _generateGlobalFunctionsSource(self):
       code = C.sequence()
       code.append(C.blank(1))
       code.extend(_genCommentHeader('GLOBAL FUNCTIONS'))
-      for info in self.upperLayerAPI['send'] + self.upperLayerAPI['receive']:
-         code.append(info.func)
-         code.append(info.body)
+      for com_func in self.component.upperLayerAPI.send+self.component.upperLayerAPI.receive:
+         code.append(C.blank(1))
+         code.append(com_func.proto)
+         code.append(com_func.body)
       return code
