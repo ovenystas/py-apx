@@ -136,13 +136,6 @@ class TestNode(unittest.TestCase):
       self.assertEqual(lines[6],'R"RheostatLevelRqst"C:=255')
       self.assertEqual(lines[7],'R"StrSignal"a[4]:=""')
       self.assertEqual(lines[8],'R"RecordSignal"{"Name"a[8]"Id"L"Data"S[3]}:={"",0xFFFFFFFF,{0,0,0}}')
-      self.assertEqual(node.providePorts[0].dsg.calcStructFmtStr(node.dataTypes), '<H') #unsigned short
-      self.assertEqual(node.providePorts[1].dsg.calcStructFmtStr(node.dataTypes), '<B') #unsigned char
-      self.assertEqual(node.providePorts[2].dsg.calcStructFmtStr(node.dataTypes), '<B') #unsigned char
-      self.assertEqual(node.providePorts[3].dsg.calcStructFmtStr(node.dataTypes), '<B') #unsigned char      
-      self.assertEqual(node.requirePorts[0].dsg.calcStructFmtStr(node.dataTypes), '<B') #unsigned char
-      self.assertEqual(node.requirePorts[1].dsg.calcStructFmtStr(node.dataTypes), '<4s') #char[4]
-      self.assertEqual(node.requirePorts[2].dsg.calcStructFmtStr(node.dataTypes), '<8sI3H') #char[8],unsigned int, unsigned short[3]
       
 
    def test_node_find(self):

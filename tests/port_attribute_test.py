@@ -9,39 +9,53 @@ class TestPortAttribute(unittest.TestCase):
       attr = apx.base.PortAttribute('=0')
       self.assertEqual(attr.isQueued, False)
       self.assertEqual(attr.isParameter, False)
-      self.assertEqual(attr.initValue, {'type':'integer', 'value': 0})
+      self.assertEqual(attr.initValue.valueType, apx.VTYPE_SCALAR)
+      self.assertEqual(attr.initValue.value, 0)
+      
       attr = apx.base.PortAttribute('=255')
       self.assertEqual(attr.isQueued, False)
       self.assertEqual(attr.isParameter, False)
-      self.assertEqual(attr.initValue, {'type':'integer', 'value': 255})
+      self.assertEqual(attr.initValue.valueType, apx.VTYPE_SCALAR)
+      self.assertEqual(attr.initValue.value, 255)
+      
       attr = apx.base.PortAttribute('={3,3,7}')
       self.assertEqual(attr.isQueued, False)
       self.assertEqual(attr.isParameter, False)
-      self.assertEqual(attr.initValue, {'type':'record', 'elements': [
-                                       {'type': 'integer', 'value': 3},
-                                       {'type': 'integer', 'value': 3},
-                                       {'type': 'integer', 'value': 7}]
-                                       })
+      self.assertEqual(attr.initValue.valueType, apx.VTYPE_LIST)
+      self.assertEqual(len(attr.initValue.elements), 3)
+      self.assertEqual(attr.initValue.elements[0].valueType, apx.VTYPE_SCALAR)
+      self.assertEqual(attr.initValue.elements[0].value, 3)
+      self.assertEqual(attr.initValue.elements[1].valueType, apx.VTYPE_SCALAR)
+      self.assertEqual(attr.initValue.elements[1].value, 3)
+      self.assertEqual(attr.initValue.elements[2].valueType, apx.VTYPE_SCALAR)
+      self.assertEqual(attr.initValue.elements[2].value, 7)
 
-   def test_integer_init_value(self):
+   def test_string_init_value(self):
       attr = apx.base.PortAttribute('="InitValue"')
       self.assertEqual(attr.isQueued, False)
       self.assertEqual(attr.isParameter, False)
-      self.assertEqual(attr.initValue, {'type':'string', 'value': 'InitValue'})
+      self.assertEqual(attr.initValue.valueType, apx.VTYPE_SCALAR)
+      self.assertEqual(attr.initValue.value, "InitValue")
+
       attr = apx.base.PortAttribute('=""')
       self.assertEqual(attr.isQueued, False)
       self.assertEqual(attr.isParameter, False)
-      self.assertEqual(attr.initValue, {'type':'string', 'value': ''})
+      self.assertEqual(attr.initValue.valueType, apx.VTYPE_SCALAR)
+      self.assertEqual(attr.initValue.value, "")
+
       attr = apx.base.PortAttribute('={"a","b","", "c"}')
       self.assertEqual(attr.isQueued, False)
       self.assertEqual(attr.isParameter, False)
-      self.assertEqual(attr.initValue, {'type':'record', 'elements': [
-                                       {'type': 'string', 'value': 'a'},
-                                       {'type': 'string', 'value': 'b'},
-                                       {'type': 'string', 'value': ''},
-                                       {'type': 'string', 'value': 'c'}]
-                                       })
-
+      self.assertEqual(attr.initValue.valueType, apx.VTYPE_LIST)
+      self.assertEqual(len(attr.initValue.elements), 4)
+      self.assertEqual(attr.initValue.elements[0].valueType, apx.VTYPE_SCALAR)
+      self.assertEqual(attr.initValue.elements[0].value, "a")
+      self.assertEqual(attr.initValue.elements[1].valueType, apx.VTYPE_SCALAR)
+      self.assertEqual(attr.initValue.elements[1].value, "b")
+      self.assertEqual(attr.initValue.elements[2].valueType, apx.VTYPE_SCALAR)
+      self.assertEqual(attr.initValue.elements[2].value, "")
+      self.assertEqual(attr.initValue.elements[3].valueType, apx.VTYPE_SCALAR)
+      self.assertEqual(attr.initValue.elements[3].value, "c")
 
 if __name__ == '__main__':
     unittest.main()
