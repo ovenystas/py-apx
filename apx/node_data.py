@@ -47,13 +47,12 @@ class NodeData():
       offset=0
       init_data = bytearray()
       for port in node.requirePorts:
-         dsg_resolved = port.dsg.resolveType(node.dataTypes)
-         packLen = port.dsg.packLen(node.dataTypes)
-         port.dsg.calcStructFmtStr(node.dataTypes)
+         dataElement = port.dsg.resolveDataElement(node.dataTypes)
+         packLen = port.dsg.packLen(node.dataTypes)         
          self.inPortDataMap.append(PortMapRange(offset, offset+packLen, port))
          offset+=packLen
          if port.attr is not None and port.attr.initValue is not None:
-            init_data.extend(dsg_resolved.createInitData(port.attr.initValue))
+            init_data.extend(dataElement.createInitData(port.attr.initValue))
          else:
             init_data.extend(bytes(packLen)) #initialize with zeros if no init value has been selected
       file_len=offset
@@ -67,13 +66,12 @@ class NodeData():
       offset=0
       init_data = bytearray()
       for port in node.providePorts:
-         dsg_resolved = port.dsg.resolveType(node.dataTypes)
-         packLen = port.dsg.packLen(node.dataTypes)
-         port.dsg.calcStructFmtStr(node.dataTypes)
+         dataElement = port.dsg.resolveDataElement(node.dataTypes)
+         packLen = port.dsg.packLen(node.dataTypes)         
          self.outPortDataMap.append(PortMapRange(offset, offset+packLen, port))
          offset+=packLen
          if port.attr is not None and port.attr.initValue is not None:
-            init_data.extend(dsg_resolved.createInitData(port.attr.initValue))
+            init_data.extend(dataElement.createInitData(port.attr.initValue))
          else:
             init_data.extend(bytes(packLen)) #initialize with zeros if no init value has been selected         
       file_len=offset
@@ -111,34 +109,10 @@ class NodeData():
    def writeProvidePort(self, portId, value):
       port = self.node.providePorts[portId]
       portMapElem = self.outPortDataMap[portId]
-      dsg = port.dsg.resolveType(self.node.dataTypes)
-      assert(dsg.structFmtStr is not None and len(dsg.structFmtStr)>0)
-      if dsg.data['type'] == 'record':
-         if not isinstance(value, abc.Mapping):
-            raise ValueError('value must be a dictionary or other mappable type')
-         raise NotImplementedError('record')
-      if dsg.data['isArray']:
-         if not isinstance(value, abc.Iterable):
-            raise ValueError('value must be iterable')
-         raise NotImplementedError('array')
-      else:
-         assert(len(dsg.structFmtStr)==2)
-         data = struct.pack(dsg.structFmtStr,value)
-         self.outPortDataFile.write(portMapElem.startOffset, data)
+      dataElement = port.dsg.resolveDataElement(node.dataTypes)
+      
+      raise NotImplementedError('writeProvidePort')
 
    def _unpackRequirePort(self, port, data):
-      assert(port.dsg.structFmtStr is not None and len(port.dsg.structFmtStr)>0)
-      dsg = port.dsg.resolveType(self.node.dataTypes)
-      if dsg.data['type'] == 'record':
-         if not isinstance(value, abc.Mapping):
-            raise ValueError('value must be a dictionary or other mappable type')
-         raise NotImplementedError('record')
-      if dsg.data['isArray']:
-         if not isinstance(value, abc.Iterable):
-            raise ValueError('value must be iterable')
-         raise NotImplementedError('array')
-      else:
-         assert(len(port.dsg.structFmtStr)==2)
-         (value,) = struct.unpack(port.dsg.structFmtStr,data)
-         return value
+      raise NotImplementedError('_unpackRequirePort')
 

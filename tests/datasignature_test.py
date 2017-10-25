@@ -25,7 +25,7 @@ class TestDataSignatureParsing(unittest.TestCase):
         self.assertEqual(dataElement.typeCode, apx.UINT8_TYPE_CODE)
         self.assertEqual(dataElement.minVal, 0)
         self.assertEqual(dataElement.maxVal, 255)
-        self.assertFalse(dataElement.isArray)
+        self.assertFalse(dataElement.isArray())
         self.assertIsNone(dataElement.arrayLen)
 
     def test_uint8_array(self):
@@ -34,7 +34,7 @@ class TestDataSignatureParsing(unittest.TestCase):
         self.assertEqual(dataElement.typeCode, apx.UINT8_TYPE_CODE)
         self.assertIsNone(dataElement.minVal)
         self.assertIsNone(dataElement.maxVal)
-        self.assertTrue(dataElement.isArray)
+        self.assertTrue(dataElement.isArray())
         self.assertEqual(dataElement.arrayLen, 8)
         
         
@@ -43,7 +43,7 @@ class TestDataSignatureParsing(unittest.TestCase):
         self.assertEqual(dataElement.typeCode, apx.UINT8_TYPE_CODE)
         self.assertEqual(dataElement.minVal, 0)
         self.assertEqual(dataElement.maxVal, 1)
-        self.assertTrue(dataElement.isArray)
+        self.assertTrue(dataElement.isArray())
         self.assertEqual(dataElement.arrayLen, 4)
 
         (dataElement, remain) = apx.DataSignature.parseDataSignature('C(0,255)[10]')
@@ -51,7 +51,7 @@ class TestDataSignatureParsing(unittest.TestCase):
         self.assertEqual(dataElement.typeCode, apx.UINT8_TYPE_CODE)
         self.assertEqual(dataElement.minVal, 0)
         self.assertEqual(dataElement.maxVal, 255)
-        self.assertTrue(dataElement.isArray)
+        self.assertTrue(dataElement.isArray())
         self.assertEqual(dataElement.arrayLen, 10)
         
     def test_uint8_errors(self):
@@ -70,21 +70,21 @@ class TestDataSignatureParsing(unittest.TestCase):
         self.assertEqual(dataElement.typeCode, apx.UINT16_TYPE_CODE)
         self.assertIsNone(dataElement.minVal)
         self.assertIsNone(dataElement.maxVal)
-        self.assertFalse(dataElement.isArray)
+        self.assertFalse(dataElement.isArray())
         
         (dataElement, remain) = apx.DataSignature.parseDataSignature('S(0,400)')
         self.assertIsInstance(dataElement, apx.DataElement)
         self.assertEqual(dataElement.typeCode, apx.UINT16_TYPE_CODE)
         self.assertEqual(dataElement.minVal, 0)
         self.assertEqual(dataElement.maxVal, 400)
-        self.assertFalse(dataElement.isArray)
+        self.assertFalse(dataElement.isArray())
 
         (dataElement, remain) = apx.DataSignature.parseDataSignature('S(0,65535)')
         self.assertIsInstance(dataElement, apx.DataElement)
         self.assertEqual(dataElement.typeCode, apx.UINT16_TYPE_CODE)
         self.assertEqual(dataElement.minVal, 0)
         self.assertEqual(dataElement.maxVal, 65535)
-        self.assertFalse(dataElement.isArray)
+        self.assertFalse(dataElement.isArray())
     
     def test_uint16_array(self):
         (dataElement, remain) = apx.DataSignature.parseDataSignature('S[8]')
@@ -92,7 +92,7 @@ class TestDataSignatureParsing(unittest.TestCase):
         self.assertEqual(dataElement.typeCode, apx.UINT16_TYPE_CODE)
         self.assertIsNone(dataElement.minVal)
         self.assertIsNone(dataElement.maxVal)
-        self.assertTrue(dataElement.isArray)
+        self.assertTrue(dataElement.isArray())
         self.assertEqual(dataElement.arrayLen, 8)
         
         
@@ -109,7 +109,7 @@ class TestDataSignatureParsing(unittest.TestCase):
         self.assertEqual(dataElement.typeCode, apx.UINT16_TYPE_CODE)
         self.assertEqual(dataElement.minVal, 0)
         self.assertEqual(dataElement.maxVal, 65535)
-        self.assertTrue(dataElement.isArray)
+        self.assertTrue(dataElement.isArray())
         self.assertEqual(dataElement.arrayLen, 10)        
 
     def test_uint32(self):
@@ -118,21 +118,21 @@ class TestDataSignatureParsing(unittest.TestCase):
         self.assertEqual(dataElement.typeCode, apx.UINT32_TYPE_CODE)
         self.assertIsNone(dataElement.minVal)
         self.assertIsNone(dataElement.maxVal)
-        self.assertFalse(dataElement.isArray)
+        self.assertFalse(dataElement.isArray())
         
         (dataElement, remain) = apx.DataSignature.parseDataSignature('L(0,100000)')
         self.assertIsInstance(dataElement, apx.DataElement)
         self.assertEqual(dataElement.typeCode, apx.UINT32_TYPE_CODE)
         self.assertEqual(dataElement.minVal, 0)
         self.assertEqual(dataElement.maxVal, 100000)
-        self.assertFalse(dataElement.isArray)
+        self.assertFalse(dataElement.isArray())
 
         (dataElement, remain) = apx.DataSignature.parseDataSignature('L(0,4294967295)')
         self.assertIsInstance(dataElement, apx.DataElement)
         self.assertEqual(dataElement.typeCode, apx.UINT32_TYPE_CODE)
         self.assertEqual(dataElement.minVal, 0)
         self.assertEqual(dataElement.maxVal, 4294967295)
-        self.assertFalse(dataElement.isArray)
+        self.assertFalse(dataElement.isArray())
     
     def test_uint32_array(self):
         (dataElement, remain) = apx.DataSignature.parseDataSignature('L[8]')
@@ -140,7 +140,7 @@ class TestDataSignatureParsing(unittest.TestCase):
         self.assertEqual(dataElement.typeCode, apx.UINT32_TYPE_CODE)
         self.assertIsNone(dataElement.minVal)
         self.assertIsNone(dataElement.maxVal)
-        self.assertTrue(dataElement.isArray)
+        self.assertTrue(dataElement.isArray())
         self.assertEqual(dataElement.arrayLen, 8)
         
         
@@ -149,7 +149,7 @@ class TestDataSignatureParsing(unittest.TestCase):
         self.assertEqual(dataElement.typeCode, apx.UINT32_TYPE_CODE)
         self.assertEqual(dataElement.minVal, 0)
         self.assertEqual(dataElement.maxVal, 1000000)
-        self.assertTrue(dataElement.isArray)
+        self.assertTrue(dataElement.isArray())
         self.assertEqual(dataElement.arrayLen, 4)
 
         (dataElement, remain) = apx.DataSignature.parseDataSignature('L(0,4294967295)[10]')
@@ -157,7 +157,7 @@ class TestDataSignatureParsing(unittest.TestCase):
         self.assertEqual(dataElement.typeCode, apx.UINT32_TYPE_CODE)
         self.assertEqual(dataElement.minVal, 0)
         self.assertEqual(dataElement.maxVal, 4294967295)
-        self.assertTrue(dataElement.isArray)
+        self.assertTrue(dataElement.isArray())
         self.assertEqual(dataElement.arrayLen, 10)
     
     def test_record_simple(self):
@@ -343,6 +343,14 @@ class TestDataSignatureInitValues(unittest.TestCase):
         attr = apx.base.PortAttribute('={0xFFFFFFFF, 0xFFFFFFFF}')
         data = dsg.createInitData(attr.initValue)
         self.assertEqual(b'\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF', bytes(data))
+
+    def test_create_init_data_reference(self):
+        typeList = [apx.base.DataType('TestType1','S[2]')]
+        dsg = apx.base.DataSignature('T[0]')
+        attr = apx.base.PortAttribute('={0x1234,0x5678}')
+        data = dsg.createInitData(attr.initValue, typeList)
+        self.assertEqual(b'\x34\x12\x78\x56', bytes(data))
+
 
 class test_elem_size(unittest.TestCase):
     def test_U8(self):

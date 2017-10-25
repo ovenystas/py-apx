@@ -39,12 +39,12 @@ class TestFileManager(unittest.TestCase):
       fileManager.attachNodeData(nodeData)
       self.assertEqual(len(fileManager.localFileMap), 2)
       self.assertEqual(len(fileManager.requestedFiles), 1)
-      fileManager.start()
-      mockHandler = MockTransmitHandler()
-      fileManager.onConnect(mockHandler)
-      time.sleep(0.1)
-      self.assertEqual(len(mockHandler.transmittedData), 61*2)
-      fileManager.stop()
+#      fileManager.start()
+#      mockHandler = MockTransmitHandler()
+#      fileManager.onConnect(mockHandler)
+#      time.sleep(0.1)
+#      self.assertEqual(len(mockHandler.transmittedData), 61*2)
+#      fileManager.stop()
       
 
 
