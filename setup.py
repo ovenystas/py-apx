@@ -12,7 +12,7 @@ def test_suite():
     return suite		
 		
 setup(name='apx',
-      version='0.1.6',
+      version='0.1.7',
       description='Official APX python toolchain and client',
       long_description=readme(),
       classifiers=[
@@ -25,11 +25,11 @@ setup(name='apx',
       author_email='congus8@gmail.com',
       license='MIT',
 	  install_requires=[
-		  'autosar>=0.3.3'
+		  'autosar>=0.3.4'
       ],
       packages=['apx','remotefile'],
       py_modules=['numheader'],
 	  test_suite = 'tests',
-	  dependency_links=['https://github.com/cogu/autosar/archive/v0.3.3.tar.gz#egg=autosar-0.3.3'],
+	  dependency_links=['https://github.com/cogu/autosar/archive/v0.3.4.tar.gz#egg=autosar-0.3.4'],
 	  zip_safe=False)
 	  
