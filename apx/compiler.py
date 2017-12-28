@@ -1,49 +1,5 @@
 from apx.base import *
-
-OPCODE_NOP = 0
-OPCODE_PROG = 1
-OPCODE_PACK_U8 = 2
-OPCODE_PACK_U16 = 3
-OPCODE_PACK_U32 = 4
-OPCODE_PACK_S8 = 5
-OPCODE_PACK_S16 = 6
-OPCODE_PACK_S32 = 7
-OPCODE_PACK_STR = 8
-OPCODE_PACK_U8AR = 9
-OPCODE_PACK_U16AR = 10
-OPCODE_PACK_U32AR = 11
-OPCODE_PACK_S8AR = 12
-OPCODE_PACK_S16AR = 13
-OPCODE_PACK_S32AR = 14
-OPCODE_UNPACK_U8 = 15
-OPCODE_UNPACK_U16 = 16
-OPCODE_UNPACK_U32 = 17
-OPCODE_UNPACK_S8 = 18
-OPCODE_UNPACK_S16 = 19
-OPCODE_UNPACK_S32 = 20
-OPCODE_UNPACK_STR = 21
-OPCODE_UNPACK_U8AR = 22
-OPCODE_UNPACK_U16AR = 23
-OPCODE_UNPACK_U32AR = 24
-OPCODE_UNPACK_S8AR = 25
-OPCODE_UNPACK_S16AR = 26
-OPCODE_UNPACK_S32AR = 27
-OPCODE_RECORD_ENTER = 28
-OPCODE_RECORD_SELECT = 29
-OPCODE_RECORD_LEAVE = 30
-OPCODE_ARRAY_ENTER = 31
-OPCODE_ARRAY_NEXT = 32
-OPCODE_ARRAY_LEAVE = 33
-
-PACK_PROG = 0
-UNPACK_PROG = 1
-
-UINT8_LEN   = 1
-UINT16_LEN  = 2
-UINT32_LEN  = 4
-SINT8_LEN   = 1
-SINT16_LEN  = 2
-SINT32_LEN  = 4
+from apx.vm_base import *
 
 
 class Compiler:
@@ -66,7 +22,7 @@ class Compiler:
    
    def _packProgHeader(self, variantTypeByte, progLen, insert=False):
       tmp = bytearray()
-      tmp.extend([OPCODE_PROG, PACK_PROG])
+      tmp.extend([OPCODE_PROG_HEADER, PACK_PROG])
       tmp.append(variantTypeByte)
       tmp.append( (progLen >> 16) & 0xFF)
       tmp.append( (progLen >> 8) & 0xFF)
@@ -78,7 +34,7 @@ class Compiler:
 
    def _unpackProgHeader(self, variantTypeByte, progLen, insert=False):
       tmp = bytearray()
-      tmp.extend([OPCODE_PROG, UNPACK_PROG])
+      tmp.extend([OPCODE_PROG_HEADER, UNPACK_PROG])
       tmp.append(variantTypeByte)
       tmp.append( (progLen >> 16) & 0xFF)
       tmp.append( (progLen >> 8) & 0xFF)
@@ -89,13 +45,13 @@ class Compiler:
          self.prog.extend(tmp)
       
    def _packDataElement(self, dataElement, header):
-      if dataElement.isArray:
+      if dataElement.isArray():
          return self._packArray(dataElement, header)    
       else:
          return self._packSingleElement(dataElement, header)
    
    def _unpackDataElement(self, dataElement, header):
-      if dataElement.isArray:
+      if dataElement.isArray():
          return self._unpackArray(dataElement, header)    
       else:
          return self._unpackSingleElement(dataElement, header)

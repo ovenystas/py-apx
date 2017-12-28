@@ -321,7 +321,7 @@ class DataElement:
    
    def isArray(self, typeList = None):
       dataElement = self.resolveDataElement(typeList)
-      return dataElement._arrayLen is not None
+      return dataElement.arrayLen is not None
       
    def isRecord(self, typeList = None):
       dataElement = self.resolveDataElement(typeList)
