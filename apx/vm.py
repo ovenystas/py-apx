@@ -1,12 +1,12 @@
 from apx.base import *
 from apx.vm_base import *
+import struct
 
 class VM:
     """
     APX Virtual Machine
     """
     def __init__(self):
-        self.value = None
         def prog_header(opcode, code, code_next, code_end):
             if code_next+5 <= code_end:
                 prog_type = code[code_next]; code_next+=1
@@ -67,7 +67,26 @@ class VM:
             OPCODE_ARRAY_NEXT: simple,
             OPCODE_ARRAY_LEAVE: simple,
         }
+        
+        self.exec_map = {
+            OPCODE_PACK_U8: self._pack_u8,
+            
+            OPCODE_UNPACK_U8: self._unpack_u8
+        }
+        self.reset()
 
+    def reset(self):
+        """ Resets internal state"""
+        self.value = None
+        self.data = None
+        self.data_offset=None
+        self.prog_type = NO_PROG
+
+    def set_state_internal(self, data, data_offset, first_instruction = False, value = None):
+        self.value = value
+        self.data=data
+        self.data_offset=data_offset
+        self.first_instruction = first_instruction
     
     def exec_pack_prog(self, code, data, data_offset, value):
         """
@@ -79,7 +98,18 @@ class VM:
         """
         code_next = 0
         code_end = len(code)
-        instruction, code_result = self.parseNextInstruction(code, code_next, code_end)
+        self.prog_type = PACK_PROG
+        self.data=data
+        self.data_offset=data_offset
+        self.value=value
+        self.first_instruction=True
+        while True:
+            instruction, code_result = self.parse_next_instruction(code, code_next, code_end)
+            if instruction is None:
+                break
+            else:
+                self.exec_instruction(instruction)
+        self.reset()
     
     def exec_unpack_prog(self, code, data, data_offset):
         """
@@ -92,7 +122,7 @@ class VM:
         pass
         
 
-    def parseNextInstruction(self, code, code_next, code_end):
+    def parse_next_instruction(self, code, code_next, code_end):
         """
         Returns the next parsed instruction along with the next parse position        
         """
@@ -103,4 +133,54 @@ class VM:
                 return handler(opcode, code, code_next, code_end)
             except KeyError:
                 raise UnknownOpCodeError('op_code = %d'%code[code_next])
+        return None, code_next
 
+    def exec_instruction(self, instruction):
+        if self.first_instruction:
+            if isinstance(instruction, ProgHeaderInstruction):
+                self.first_instruction = False                
+                if instruction.prog_type == PACK_PROG:
+                    self.verify_value_compatibility(instruction.variant_type)
+                else:
+                    self.prepare_value(instruction.variant_type)
+                if not self.verify_data_len(instruction.length):
+                    raise RuntimeError('Not enough bytes in data buffer. Expected %d bytes, got %d'%(instruction.length, len(self.data)-self.data_offset))
+            else:
+                raise RuntimeError('first instructionm must be of type OPCODE_PROG_HEADER')
+        else:
+            if isinstance(instruction, SelectInstruction):
+                raise NotImplementedError('SelectInstruction')
+            elif isinstance(instruction, Instruction):
+                handler = self.exec_map[instruction.opcode]
+                handler(instruction.length)
+
+    def verify_value_type(self, value_type):
+        if value_type == VTYPE_INVALID:
+            raise InvalidValueTypeError(value_type)
+        elif value_type == VTYPE_SCALAR and not isinstance(self.value, (str, int)):
+            raise InvalidValueTypeError("Expected int or str, got '%s'"%type(self.value))
+        elif value_type == VTYPE_LIST and not isinstance(self.value, list):
+            raise InvalidValueTypeError("Expected list, got '%s'"%type(self.value))
+        elif value_type == VTYPE_MAP and not isinstance(self.value, dict):
+            raise InvalidValueTypeError("Expected dict, got '%s'"%type(self.value))
+        return True
+
+    def prepare_value(self, value_type):
+        """
+        Creates the initial container before unpacking value
+        """
+        if value_type == VTYPE_LIST:
+            self.value = []
+        elif value_type == VTYPE_MAP:
+            self.value = {}
+    
+    def verify_data_len(self, length):
+        return (len(self.data)-self.data_offset)>=length
+    
+    def _pack_u8(self, length):
+        struct.pack_into("B", self.data, self.data_offset, self.value)
+        self.data_offset+=1
+
+    def _unpack_u8(self, length):
+        (self.value,) = struct.unpack_from("B", self.data, self.data_offset)
+        self.data_offset+=1
