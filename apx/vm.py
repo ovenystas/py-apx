@@ -6,7 +6,7 @@ class VM:
     """
     APX Virtual Machine
     """
-    def __init__(self):
+    def __init__(self, little_endian_format=True):
         def prog_header(opcode, code, code_next, code_end):
             if code_next+5 <= code_end:
                 prog_type = code[code_next]; code_next+=1
@@ -69,10 +69,28 @@ class VM:
         }
         
         self.exec_map = {
-            OPCODE_PACK_U8: self._pack_u8,
-            
-            OPCODE_UNPACK_U8: self._unpack_u8
+
         }
+        if little_endian_format:
+            self.struct_map = {
+                #tuple: handler, struct, data length
+                OPCODE_PACK_U8: (self._exec_pack_struct, struct.Struct("B"), 1),
+                OPCODE_PACK_U16: (self._exec_pack_struct, struct.Struct("<H"),2),
+                OPCODE_PACK_U32: (self._exec_pack_struct, struct.Struct("<I"),4),
+                OPCODE_PACK_S8: (self._exec_pack_struct, struct.Struct("b"),1),
+                OPCODE_PACK_S16: (self._exec_pack_struct, struct.Struct("<h"),2),
+                OPCODE_PACK_S32: (self._exec_pack_struct, struct.Struct("<i"),4),
+                
+                OPCODE_UNPACK_U8: (self._exec_unpack_struct, struct.Struct("B"),1),
+                OPCODE_UNPACK_U16: (self._exec_unpack_struct, struct.Struct("<H"),2),
+                OPCODE_UNPACK_U32: (self._exec_unpack_struct, struct.Struct("<I"),4),
+                OPCODE_UNPACK_S8: (self._exec_unpack_struct, struct.Struct("b"),1),
+                OPCODE_UNPACK_S16: (self._exec_unpack_struct, struct.Struct("<h"),2),
+                OPCODE_UNPACK_S32: (self._exec_unpack_struct, struct.Struct("<i"),4),
+            }
+        else:
+            raise NotImplementedError("Big endian format")
+        
         self.reset()
 
     def reset(self):
@@ -151,8 +169,13 @@ class VM:
             if isinstance(instruction, SelectInstruction):
                 raise NotImplementedError('SelectInstruction')
             elif isinstance(instruction, Instruction):
-                handler = self.exec_map[instruction.opcode]
-                handler(instruction.length)
+                if instruction.opcode in self.struct_map:
+                    handler, s, data_len = self.struct_map[instruction.opcode]
+                    handler(s,data_len)
+                else:
+                    handler = self.exec_map[instruction.opcode]
+                    handler(instruction.length)
+                
 
     def verify_value_type(self, value_type):
         if value_type == VTYPE_INVALID:
@@ -177,10 +200,10 @@ class VM:
     def verify_data_len(self, length):
         return (len(self.data)-self.data_offset)>=length
     
-    def _pack_u8(self, length):
-        struct.pack_into("B", self.data, self.data_offset, self.value)
-        self.data_offset+=1
+    def _exec_pack_struct(self, s, data_len):
+        s.pack_into(self.data, self.data_offset, self.value)
+        self.data_offset+=data_len
 
-    def _unpack_u8(self, length):
-        (self.value,) = struct.unpack_from("B", self.data, self.data_offset)
-        self.data_offset+=1
+    def _exec_unpack_struct(self, s, data_len):
+        (self.value,) = s.unpack_from(self.data, self.data_offset)
+        self.data_offset+=data_len
