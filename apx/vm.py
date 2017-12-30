@@ -69,24 +69,49 @@ class VM:
         }
         
         self.exec_map = {
-
+            OPCODE_PACK_STR: self._exec_pack_str,
+            OPCODE_UNPACK_STR: self._exec_unpack_str
         }
         if little_endian_format:
+            u8_pack = (self._exec_pack_struct, struct.Struct("B"), 1)
+            u16_pack = (self._exec_pack_struct, struct.Struct("<H"),2)
+            u32_pack = (self._exec_pack_struct, struct.Struct("<I"),4)
+            s8_pack = (self._exec_pack_struct, struct.Struct("b"),1)
+            s16_pack = (self._exec_pack_struct, struct.Struct("<h"),2)
+            s32_pack = (self._exec_pack_struct, struct.Struct("<i"),4)
+            u8_unpack = (self._exec_unpack_struct, struct.Struct("B"),1)
+            u16_unpack = (self._exec_unpack_struct, struct.Struct("<H"),2)
+            u32_unpack = (self._exec_unpack_struct, struct.Struct("<I"),4)
+            s8_unpack = (self._exec_unpack_struct, struct.Struct("b"),1)
+            s16_unpack = (self._exec_unpack_struct, struct.Struct("<h"),2)
+            s32_unpack = (self._exec_unpack_struct, struct.Struct("<i"),4)
             self.struct_map = {
                 #tuple: handler, struct, data length
-                OPCODE_PACK_U8: (self._exec_pack_struct, struct.Struct("B"), 1),
-                OPCODE_PACK_U16: (self._exec_pack_struct, struct.Struct("<H"),2),
-                OPCODE_PACK_U32: (self._exec_pack_struct, struct.Struct("<I"),4),
-                OPCODE_PACK_S8: (self._exec_pack_struct, struct.Struct("b"),1),
-                OPCODE_PACK_S16: (self._exec_pack_struct, struct.Struct("<h"),2),
-                OPCODE_PACK_S32: (self._exec_pack_struct, struct.Struct("<i"),4),
+                OPCODE_PACK_U8: u8_pack,
+                OPCODE_PACK_U16: u16_pack,
+                OPCODE_PACK_U32: u32_pack,
+                OPCODE_PACK_S8: s8_pack,
+                OPCODE_PACK_S16: s16_pack,
+                OPCODE_PACK_S32: s32_pack,
+                OPCODE_PACK_U8AR: u8_pack,
+                OPCODE_PACK_U16AR: u16_pack,
+                OPCODE_PACK_U32AR: u32_pack,
+                OPCODE_PACK_S8AR: s8_pack,
+                OPCODE_PACK_S16AR: s16_pack,
+                OPCODE_PACK_S32AR: s32_pack,                
                 
-                OPCODE_UNPACK_U8: (self._exec_unpack_struct, struct.Struct("B"),1),
-                OPCODE_UNPACK_U16: (self._exec_unpack_struct, struct.Struct("<H"),2),
-                OPCODE_UNPACK_U32: (self._exec_unpack_struct, struct.Struct("<I"),4),
-                OPCODE_UNPACK_S8: (self._exec_unpack_struct, struct.Struct("b"),1),
-                OPCODE_UNPACK_S16: (self._exec_unpack_struct, struct.Struct("<h"),2),
-                OPCODE_UNPACK_S32: (self._exec_unpack_struct, struct.Struct("<i"),4),
+                OPCODE_UNPACK_U8: u8_unpack,
+                OPCODE_UNPACK_U16: u16_unpack,
+                OPCODE_UNPACK_U32: u32_unpack,
+                OPCODE_UNPACK_S8: s8_unpack,
+                OPCODE_UNPACK_S16: s16_unpack,
+                OPCODE_UNPACK_S32: s32_unpack,
+                OPCODE_UNPACK_U8AR: u8_unpack,
+                OPCODE_UNPACK_U16AR: u16_unpack,
+                OPCODE_UNPACK_U32AR: u32_unpack,
+                OPCODE_UNPACK_S8AR: s8_unpack,
+                OPCODE_UNPACK_S16AR: s16_unpack,
+                OPCODE_UNPACK_S32AR: s32_unpack,
             }
         else:
             raise NotImplementedError("Big endian format")
@@ -159,8 +184,6 @@ class VM:
                 self.first_instruction = False                
                 if instruction.prog_type == PACK_PROG:
                     self.verify_value_compatibility(instruction.variant_type)
-                else:
-                    self.prepare_value(instruction.variant_type)
                 if not self.verify_data_len(instruction.length):
                     raise RuntimeError('Not enough bytes in data buffer. Expected %d bytes, got %d'%(instruction.length, len(self.data)-self.data_offset))
             else:
@@ -170,8 +193,8 @@ class VM:
                 raise NotImplementedError('SelectInstruction')
             elif isinstance(instruction, Instruction):
                 if instruction.opcode in self.struct_map:
-                    handler, s, data_len = self.struct_map[instruction.opcode]
-                    handler(s,data_len)
+                    handler, struct_obj, data_len = self.struct_map[instruction.opcode]
+                    handler(struct_obj, data_len, instruction.length)
                 else:
                     handler = self.exec_map[instruction.opcode]
                     handler(instruction.length)
@@ -200,10 +223,31 @@ class VM:
     def verify_data_len(self, length):
         return (len(self.data)-self.data_offset)>=length
     
-    def _exec_pack_struct(self, s, data_len):
-        s.pack_into(self.data, self.data_offset, self.value)
-        self.data_offset+=data_len
+    def _exec_pack_struct(self, obj, data_len, array_len):
+        if array_len is None:
+            obj.pack_into(self.data, self.data_offset, self.value)
+            self.data_offset+=data_len
+        else:
+            for i in range(array_len):
+                obj.pack_into(self.data, self.data_offset, self.value[i])
+                self.data_offset+=data_len
 
-    def _exec_unpack_struct(self, s, data_len):
-        (self.value,) = s.unpack_from(self.data, self.data_offset)
-        self.data_offset+=data_len
+    def _exec_unpack_struct(self, obj, data_len, array_len):
+        if array_len is None:
+            (self.value,) = obj.unpack_from(self.data, self.data_offset)
+            self.data_offset+=data_len
+        else:
+            self.value=[]
+            for i in range(array_len):
+                (tmp,) = obj.unpack_from(self.data, self.data_offset)
+                self.value.append(tmp)
+                self.data_offset+=data_len
+                    
+    def _exec_pack_str(self, data_len):
+        struct.pack_into('{:d}s'.format(data_len+1), self.data, self.data_offset, bytes(self.value, encoding='ascii'))
+        self.data_offset+=data_len+1 #Python adds a null-terminator
+
+    def _exec_unpack_str(self, data_len):
+        (tmp,) = struct.unpack_from('{:d}s'.format(data_len), self.data, self.data_offset)
+        self.value=tmp.decode("ascii")
+        self.data_offset+=data_len+1

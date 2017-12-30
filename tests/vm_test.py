@@ -684,6 +684,134 @@ class TestApxVM(unittest.TestCase):
         self.assertEqual(vm.value, -2147483648)
         self.assertEqual(vm.data_offset, 16)
 
+    def test_exec_pack_str(self):
+        vm = apx.VM()
+        data = bytearray([0,0,0,0,0,0,0,0,0,0,0,0])
+        self.assertIsNone(vm.value)
+        vm.set_state_internal(data, 0, value = 'Hello World')
+        instruction = apx.Instruction(apx.OPCODE_PACK_STR, 11)
+        vm.exec_instruction(instruction)
+        self.assertEqual(data, bytearray([ord('H'),ord('e'),ord('l'),ord('l'),ord('o'),ord(' '),ord('W'),ord('o'),ord('r'),ord('l'),ord('d'),0]))
+        self.assertEqual(vm.data_offset, 12)
+
+    def test_exec_unpack_str(self):
+        vm = apx.VM()
+        data = bytearray([ord('H'),ord('e'),ord('l'),ord('l'),ord('o'),ord(' '),ord('W'),ord('o'),ord('r'),ord('l'),ord('d'),0])            
+        vm.set_state_internal(data, 0)
+        self.assertIsNone(vm.value)
+        instruction = apx.Instruction(apx.OPCODE_UNPACK_STR, 11)
+        vm.exec_instruction(instruction)
+        self.assertEqual(vm.value, 'Hello World')
+        self.assertEqual(vm.data_offset, 12)
+    
+    def test_exec_pack_u8_array(self):
+        vm = apx.VM()
+        data = bytearray([0,0,0,0,0,0,0])
+        self.assertIsNone(vm.value)
+        vm.set_state_internal(data, 0, value = [1,2,3,4,5])
+        vm.exec_instruction(apx.Instruction(apx.OPCODE_PACK_U8AR, 5))
+        self.assertEqual(data, bytearray([1,2,3,4,5,0,0]))
+        self.assertEqual(vm.data_offset, 5)
+        vm.value=[255,255]
+        vm.exec_instruction(apx.Instruction(apx.OPCODE_PACK_U8AR, 2))
+        self.assertEqual(data, bytearray([1,2,3,4,5,255,255]))
+        self.assertEqual(vm.data_offset, 7)
+    
+    def test_exec_unpack_u8_array(self):
+        vm = apx.VM()
+        data = bytearray([1,2,3,4,5,255,255])
+        vm.set_state_internal(data, 0)
+        self.assertIsNone(vm.value)
+        vm.exec_instruction(apx.Instruction(apx.OPCODE_UNPACK_U8AR, 5))
+        self.assertEqual(vm.value, [1,2,3,4,5])
+        self.assertEqual(vm.data_offset, 5)
+        vm.exec_instruction(apx.Instruction(apx.OPCODE_UNPACK_U8AR, 2))
+        self.assertEqual(vm.value, [255,255])
+
+    def test_exec_pack_u16_array(self):
+        vm = apx.VM()
+        data = bytearray([0,0,0,0,0,0])
+        self.assertIsNone(vm.value)
+        vm.set_state_internal(data, 0, value = [0x1253, 0xffff, 23])
+        vm.exec_instruction(apx.Instruction(apx.OPCODE_PACK_U16AR, 3))
+        self.assertEqual(data, bytearray([0x53,0x12,0xff,0xff,23,00]))
+        self.assertEqual(vm.data_offset, 6)
+    
+    def test_exec_unpack_u16_array(self):
+        vm = apx.VM()
+        data = bytearray([0x53,0x12,0xff,0xff,23,00])
+        vm.set_state_internal(data, 0)
+        self.assertIsNone(vm.value)
+        vm.exec_instruction(apx.Instruction(apx.OPCODE_UNPACK_U16AR, 3))
+        self.assertEqual(vm.value, [0x1253, 0xffff, 23])
+        
+    def test_exec_pack_u32_array(self):
+        vm = apx.VM()
+        data = bytearray([0,0,0,0,0,0,0,0,0,0,0,0])
+        self.assertIsNone(vm.value)
+        vm.set_state_internal(data, 0, value = [0x1292abc4, 0xffffffff, 23])
+        vm.exec_instruction(apx.Instruction(apx.OPCODE_PACK_U32AR, 3))
+        self.assertEqual(data, bytearray([0xc4,0xab,0x92,0x12,0xff,0xff,0xff,0xff,23,0,0,0]))
+        self.assertEqual(vm.data_offset, 12)
+    
+    def test_exec_unpack_u32_array(self):
+        vm = apx.VM()
+        data = bytearray([0xc4,0xab,0x92,0x12,0xff,0xff,0xff,0xff,23,0,0,0])
+        vm.set_state_internal(data, 0)
+        self.assertIsNone(vm.value)
+        vm.exec_instruction(apx.Instruction(apx.OPCODE_UNPACK_U32AR, 3))
+        self.assertEqual(vm.value, [0x1292abc4, 0xffffffff, 23])        
+
+    def test_exec_pack_s8_array(self):
+        vm = apx.VM()
+        data = bytearray([0,0,0,0])
+        self.assertIsNone(vm.value)
+        vm.set_state_internal(data, 0, value = [0,-1,29,-119])
+        vm.exec_instruction(apx.Instruction(apx.OPCODE_PACK_S8AR, 4))
+        self.assertEqual(data, bytearray([0,0xff,29,0x89]))
+        self.assertEqual(vm.data_offset, 4)
+    
+    def test_exec_unpack_s8_array(self):
+        vm = apx.VM()
+        data = bytearray([0,0xff,29,0x89])
+        vm.set_state_internal(data, 0)
+        self.assertIsNone(vm.value)
+        vm.exec_instruction(apx.Instruction(apx.OPCODE_UNPACK_S8AR, 4))
+        self.assertEqual(vm.value, [0,-1,29,-119])
+
+    def test_exec_pack_s16_array(self):
+        vm = apx.VM()
+        data = bytearray([0,0,0,0,0,0])
+        self.assertIsNone(vm.value)
+        vm.set_state_internal(data, 0, value = [29,-19000,32000])
+        vm.exec_instruction(apx.Instruction(apx.OPCODE_PACK_S16AR, 3))
+        self.assertEqual(data, bytearray([29,0,0xc8,0xb5,00,0x7D]))
+        self.assertEqual(vm.data_offset, 6)
+    
+    def test_exec_unpack_s16_array(self):
+        vm = apx.VM()
+        data = bytearray([29,0,0xc8,0xb5,00,0x7D])
+        vm.set_state_internal(data, 0)
+        self.assertIsNone(vm.value)
+        vm.exec_instruction(apx.Instruction(apx.OPCODE_UNPACK_S16AR, 3))
+        self.assertEqual(vm.value, [29,-19000,32000])
+
+    def test_exec_pack_s32_array(self):
+        vm = apx.VM()
+        data = bytearray([0,0,0,0,0,0,0,0,0,0,0,0])
+        self.assertIsNone(vm.value)
+        vm.set_state_internal(data, 0, value = [29,-1900000,3200000])
+        vm.exec_instruction(apx.Instruction(apx.OPCODE_PACK_S32AR, 3))
+        self.assertEqual(data, bytearray([29,0,0,0,0x20,0x02,0xE3,0xFF,0x00,0xD4,0x30,0]))
+        self.assertEqual(vm.data_offset, 12)
+    
+    def test_exec_unpack_s32_array(self):
+        vm = apx.VM()
+        data = bytearray([29,0,0,0,0x20,0x02,0xE3,0xFF,0x00,0xD4,0x30,0])
+        vm.set_state_internal(data, 0)
+        self.assertIsNone(vm.value)
+        vm.exec_instruction(apx.Instruction(apx.OPCODE_UNPACK_S32AR, 3))
+        self.assertEqual(vm.value, [29,-1900000,3200000])
 
 if __name__ == '__main__':
     unittest.main()
