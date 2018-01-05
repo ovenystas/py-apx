@@ -56,7 +56,7 @@ class VmPackState(VmState):
             self.array_index = 0
         else:
             self.stack.append((self.value, self.key, self.array_index))
-            if self.key is not None:            
+            if self.key is not None:
                 self.value = self.value[self.key]
             elif self.array_index is not None:
                 self.value = self.value[self.array_index]
@@ -64,14 +64,14 @@ class VmPackState(VmState):
                 raise RuntimeError('array_enter called out of context')
             self.key=None
             self.array_index=0
-    
+
     def array_leave(self):
         if len(self.stack)>0:
             self.value, self.key, self.array_index = self.stack.pop()
             if self.array_index is not None:
                 self.array_index+=1
         else:
-            self.array_index = None        
+            self.array_index = None
 
     def pack_u8(self, data, data_offset, array_len = 0):
         return self.pack_struct(u8_struct, UINT8_LEN, data, data_offset, array_len)
@@ -90,7 +90,7 @@ class VmPackState(VmState):
 
     def pack_s32(self, data, data_offset, array_len = 0):
         return self.pack_struct(s32_struct, SINT32_LEN, data, data_offset, array_len)
-    
+
     def pack_str(self, data, data_offset, str_len):
         if isinstance(self.value, dict):
             if self.key is None:
@@ -100,10 +100,10 @@ class VmPackState(VmState):
             value = self.value.encode('utf-8')
         if str_len < len(data):
             truncated = data[0:str_len]
-        struct.pack_into('{:d}s'.format(str_len), data, data_offset, value)        
+        struct.pack_into('{:d}s'.format(str_len), data, data_offset, value)
         data_offset+=str_len
         return data_offset
-    
+
     def pack_struct(self, struct_obj: struct.Struct, elem_len: int, data: bytearray, data_offset: int, array_len: int):
         """
         Calls the pack_into method of the struct_obj object with some added intelligence
@@ -142,13 +142,13 @@ class VmUnpackState(VmState):
                 self.array_index=None
             else:
                 raise NotImplementedError('nested records')
-                
+
 
     def record_select(self, name):
         if not isinstance(self.value, dict):
             raise RuntimeError("record_select performed before record_enter")
         self.key=name
-    
+
     def record_leave(self):
         if len(self.stack)>0:
             child_value = self.value
@@ -169,7 +169,7 @@ class VmUnpackState(VmState):
             self.value = []
             self.key=None
             self.array_index=0
-    
+
     def array_leave(self):
         if self.array_index is None:
             raise RuntimeError('array_leave called before array_enter')
@@ -185,17 +185,58 @@ class VmUnpackState(VmState):
         else:
             self.array_index = None
 
-    
+
     def unpack_u8(self, data, data_offset, array_len=0):
+        return self.unpack_struct(u8_struct, UINT8_LEN, data, data_offset, array_len)
+
+    def unpack_u16(self, data, data_offset, array_len=0):
+        return self.unpack_struct(u16_struct, UINT16_LEN, data, data_offset, array_len)
+
+    def unpack_u32(self, data, data_offset, array_len=0):
+        return self.unpack_struct(u32_struct, UINT32_LEN, data, data_offset, array_len)
+
+    def unpack_s8(self, data, data_offset, array_len=0):
+        return self.unpack_struct(s8_struct, SINT8_LEN, data, data_offset, array_len)
+
+    def unpack_s16(self, data, data_offset, array_len=0):
+        return self.unpack_struct(s16_struct, SINT16_LEN, data, data_offset, array_len)
+
+    def unpack_s32(self, data, data_offset, array_len=0):
+        return self.unpack_struct(s32_struct, SINT32_LEN, data, data_offset, array_len)
+    
+    def unpack_str(self, data, data_offset, str_len=0):
+        data_len = len(data)-data_offset
+        if data_len < str_len:
+            raise ValueError('Not enough bytes available in data array. Need {:d}, bytes, got {:d}'.format(str_len, data_len))
+        struct.unpack_from('{:d}s'.format(str_len), data, data_offset)
+        #in case of trailing null terminators we want to get rid of those in the final string.
+        str_end = data_offset+str_len
+        data_begin=data_end=data_offset
+        vale = None
+        while(data_end < str_end):
+            if data[data_end] == 0:                
+                break
+            data_end+=1
+        value = data[data_offset:data_end].decode('utf-8')
+        if isinstance(self.value, dict):
+            if self.key is None:
+                raise RuntimeError('key must not be None')
+            self.value[self.key] = value
+        else:
+            self.value = value
+        return data_offset+str_len
+
+
+    def unpack_struct(self, struct_obj: struct.Struct, elem_len: int, data: bytearray, data_offset: int, array_len: int):
         if array_len > 0:
             value = []
             for i in range(array_len):
-                tmp, = u8_struct.unpack_from(data, data_offset)
+                tmp, = struct_obj.unpack_from(data, data_offset)
                 value.append(tmp)
-                data_offset+=UINT8_LEN
+                data_offset+=elem_len
         else:
-            value, = u8_struct.unpack_from(data, data_offset)
-            data_offset+=UINT8_LEN
+            value, = struct_obj.unpack_from(data, data_offset)
+            data_offset+=elem_len
         if isinstance(self.value, dict):
             if self.key is None:
                 raise RuntimeError('key must not be None')

@@ -2,6 +2,7 @@ import os, sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import apx
 import unittest
+import struct
 
 class TestApxVM(unittest.TestCase):
 
@@ -10,7 +11,7 @@ class TestApxVM(unittest.TestCase):
         prog = bytes([apx.OPCODE_PACK_PROG, 0x78, 0x56, 0x34, 0x12])
         code_next, instruction, args = vm.parse_next_instruction(prog, 0, len(prog))
         self.assertEqual(code_next, len(prog))
-        self.assertEqual(instruction, vm.exec_pack_prog)
+        self.assertEqual(instruction, vm.exec_pack_prog_instruction)
         self.assertEqual(args, [0x12345678])
 
     def test_parse_unpack_prog_header(self):
@@ -18,9 +19,9 @@ class TestApxVM(unittest.TestCase):
         prog = bytes([apx.OPCODE_UNPACK_PROG, 0x78, 0x56, 0x34, 0x12])
         code_next, instruction, args = vm.parse_next_instruction(prog, 0, len(prog))
         self.assertEqual(code_next, len(prog))
-        self.assertEqual(instruction, vm.exec_unpack_prog)
+        self.assertEqual(instruction, vm.exec_unpack_prog_instruction)
         self.assertEqual(args, [0x12345678])
-    
+
     def test_parse_pack_u8(self):
         vm = apx.VM()
         prog = bytes([apx.OPCODE_PACK_U8])
@@ -44,7 +45,7 @@ class TestApxVM(unittest.TestCase):
         self.assertEqual(code_next, len(prog))
         self.assertEqual(instruction, vm.exec_pack_u32)
         self.assertIsNone(args)
-    
+
     def test_parse_pack_s8(self):
         vm = apx.VM()
         prog = bytes([apx.OPCODE_PACK_S8])
@@ -92,7 +93,7 @@ class TestApxVM(unittest.TestCase):
         self.assertEqual(code_next, len(prog))
         self.assertEqual(instruction, vm.exec_unpack_u32)
         self.assertIsNone(args)
-    
+
     def test_parse_unpack_s8(self):
         vm = apx.VM()
         prog = bytes([apx.OPCODE_UNPACK_S8])
@@ -164,7 +165,7 @@ class TestApxVM(unittest.TestCase):
         self.assertEqual(code_next, len(prog))
         self.assertEqual(instruction, vm.exec_unpack_u16)
         self.assertEqual(args, [0x1234])
-    
+
     def test_parse_pack_u32_array(self):
         vm = apx.VM()
         prog = bytes([apx.OPCODE_PACK_U32AR, 0x34, 0x12])
@@ -180,7 +181,7 @@ class TestApxVM(unittest.TestCase):
         self.assertEqual(code_next, len(prog))
         self.assertEqual(instruction, vm.exec_unpack_u32)
         self.assertEqual(args, [0x1234])
-        
+
     def test_parse_pack_s8_array(self):
         vm = apx.VM()
         prog = bytes([apx.OPCODE_PACK_S8AR, 0x34, 0x12])
@@ -212,7 +213,7 @@ class TestApxVM(unittest.TestCase):
         self.assertEqual(code_next, len(prog))
         self.assertEqual(instruction, vm.exec_unpack_u16)
         self.assertEqual(args, [0x1234])
-    
+
     def test_parse_pack_s32_array(self):
         vm = apx.VM()
         prog = bytes([apx.OPCODE_PACK_S32AR, 0x34, 0x12])
@@ -228,7 +229,7 @@ class TestApxVM(unittest.TestCase):
         self.assertEqual(code_next, len(prog))
         self.assertEqual(instruction, vm.exec_unpack_s32)
         self.assertEqual(args, [0x1234])
-    
+
     def test_parse_record_enter(self):
         vm = apx.VM()
         prog = bytes([apx.OPCODE_RECORD_ENTER])
@@ -268,7 +269,7 @@ class TestApxVM(unittest.TestCase):
         self.assertEqual(code_next, len(prog))
         self.assertEqual(instruction, vm.exec_record_select)
         self.assertEqual(args, ['Selection'])
-  
+
     def test_parse_end_of_program(self):
         """
         Return None when end of program
@@ -279,7 +280,7 @@ class TestApxVM(unittest.TestCase):
         self.assertEqual(code_next, len(prog))
         self.assertIsNone(instruction)
         self.assertIsNone(args)
-    
+
     def test_exec_pack_u8(self):
         vm = apx.VM()
         data = bytearray(3)
@@ -292,6 +293,22 @@ class TestApxVM(unittest.TestCase):
         vm.value = 255
         vm.exec_instruction(vm.exec_pack_u8, None)
         self.assertEqual(data, bytearray([0,128,255]))
+
+    def test_exec_unpack_u8(self):
+        vm = apx.VM()
+        data = bytearray([0,128,255])
+        vm.init_unpack_prog(len(data), data, 0)
+        self.assertEqual(vm.value, None)
+        self.assertEqual(vm.data_offset, 0)
+        vm.exec_instruction(vm.exec_unpack_u8, None)
+        self.assertEqual(vm.value, 0)
+        vm.exec_instruction(vm.exec_unpack_u8, None)
+        self.assertEqual(vm.value, 128)
+        vm.exec_instruction(vm.exec_unpack_u8, None)
+        self.assertEqual(vm.value, 255)
+        self.assertEqual(vm.data_offset, 3)
+        with self.assertRaises(struct.error) as contect:
+            vm.exec_instruction(vm.exec_unpack_u8, None)
 
     def test_exec_pack_u16(self):
         vm = apx.VM()
@@ -306,6 +323,22 @@ class TestApxVM(unittest.TestCase):
         vm.exec_instruction(vm.exec_pack_u16, None)
         self.assertEqual(data, bytearray([0, 0, 0x34, 0x12, 0xFF, 0xFF]))
 
+    def test_exec_unpack_u16(self):
+        vm = apx.VM()
+        data = bytearray([0, 0, 0x34, 0x12, 0xFF, 0xFF])
+        vm.init_unpack_prog(len(data), data, 0)
+        self.assertEqual(vm.value, None)
+        self.assertEqual(vm.data_offset, 0)
+        vm.exec_instruction(vm.exec_unpack_u16, None)
+        self.assertEqual(vm.value, 0)
+        vm.exec_instruction(vm.exec_unpack_u16, None)
+        self.assertEqual(vm.value, 0x1234)
+        vm.exec_instruction(vm.exec_unpack_u16, None)
+        self.assertEqual(vm.value, 65535)
+        self.assertEqual(vm.data_offset, 6)
+        with self.assertRaises(struct.error) as contect:
+            vm.exec_instruction(vm.exec_unpack_u16, None)
+
     def test_exec_pack_u32(self):
         vm = apx.VM()
         data = bytearray(12)
@@ -318,6 +351,20 @@ class TestApxVM(unittest.TestCase):
         vm.value = 0xFFFFFFFF
         vm.exec_instruction(vm.exec_pack_u32, None)
         self.assertEqual(data, bytearray([0, 0, 0, 0, 0x78, 0x56, 0x34, 0x12, 0xFF, 0xFF, 0xFF, 0xFF]))
+
+    def test_exec_unpack_u32(self):
+        vm = apx.VM()
+        data = bytearray([0, 0, 0, 0, 0x78, 0x56, 0x34, 0x12, 0xFF, 0xFF, 0xFF, 0xFF])
+        vm.init_unpack_prog(len(data), data, 0)
+        self.assertEqual(vm.value, None)
+        self.assertEqual(vm.data_offset, 0)
+        vm.exec_instruction(vm.exec_unpack_u32, None)
+        self.assertEqual(vm.value, 0)
+        vm.exec_instruction(vm.exec_unpack_u32, None)
+        self.assertEqual(vm.value, 0x12345678)
+        vm.exec_instruction(vm.exec_unpack_u32, None)
+        self.assertEqual(vm.value, 0xFFFFFFFF)
+        self.assertEqual(vm.data_offset, 12)
 
     def test_exec_pack_s8(self):
         vm = apx.VM()
@@ -335,6 +382,22 @@ class TestApxVM(unittest.TestCase):
         vm.exec_instruction(vm.exec_pack_s8, None)
         self.assertEqual(data, bytearray([0x80,0xFF,0,127]))
 
+    def test_exec_unpack_s8(self):
+        vm = apx.VM()
+        data = bytearray([0x80,0xFF,0,127])
+        vm.init_unpack_prog(len(data), data, 0)
+        self.assertEqual(vm.value, None)
+        self.assertEqual(vm.data_offset, 0)
+        vm.exec_instruction(vm.exec_unpack_s8, None)
+        self.assertEqual(vm.value, -128)
+        vm.exec_instruction(vm.exec_unpack_s8, None)
+        self.assertEqual(vm.value, -1)
+        vm.exec_instruction(vm.exec_unpack_s8, None)
+        self.assertEqual(vm.value, 0)
+        vm.exec_instruction(vm.exec_unpack_s8, None)
+        self.assertEqual(vm.value, 127)
+        self.assertEqual(vm.data_offset, 4)
+
     def test_exec_pack_s16(self):
         vm = apx.VM()
         data = bytearray(8)
@@ -350,6 +413,23 @@ class TestApxVM(unittest.TestCase):
         vm.value = 32767
         vm.exec_instruction(vm.exec_pack_s16, None)
         self.assertEqual(data, bytearray([0,0x80,0xFF,0xFF,0,0,0xFF,0x7F]))
+
+    def test_exec_unpack_s16(self):
+        vm = apx.VM()
+        data = bytearray([0,0x80,0xFF,0xFF,0,0,0xFF,0x7F])
+        vm.init_unpack_prog(len(data), data, 0)
+        self.assertEqual(vm.value, None)
+        self.assertEqual(vm.data_offset, 0)
+        vm.exec_instruction(vm.exec_unpack_s16, None)
+        self.assertEqual(vm.value, -32768)
+        vm.exec_instruction(vm.exec_unpack_s16, None)
+        self.assertEqual(vm.value, -1)
+        vm.exec_instruction(vm.exec_unpack_s16, None)
+        self.assertEqual(vm.value, 0)
+        vm.exec_instruction(vm.exec_unpack_s16, None)
+        self.assertEqual(vm.value, 32767)
+        self.assertEqual(vm.data_offset, 8)
+
 
     def test_exec_pack_s32(self):
         vm = apx.VM()
@@ -367,6 +447,23 @@ class TestApxVM(unittest.TestCase):
         vm.exec_instruction(vm.exec_pack_s32, None)
         self.assertEqual(data, bytearray([0,0,0,0x80, 0xFF,0xFF,0xFF,0xFF, 0,0,0,0, 0xFF,0xFF,0xFF,0x7F]))
 
+    def test_exec_unpack_s32(self):
+        vm = apx.VM()
+        data = bytearray([0,0,0,0x80, 0xFF,0xFF,0xFF,0xFF, 0,0,0,0, 0xFF,0xFF,0xFF,0x7F])
+        vm.init_unpack_prog(len(data), data, 0)
+        self.assertEqual(vm.value, None)
+        self.assertEqual(vm.data_offset, 0)
+        vm.exec_instruction(vm.exec_unpack_s32, None)
+        self.assertEqual(vm.value, -2147483648)
+        vm.exec_instruction(vm.exec_unpack_s32, None)
+        self.assertEqual(vm.value, -1)
+        vm.exec_instruction(vm.exec_unpack_s32, None)
+        self.assertEqual(vm.value, 0)
+        vm.exec_instruction(vm.exec_unpack_s32, None)
+        self.assertEqual(vm.value, 2147483647)
+        self.assertEqual(vm.data_offset, 16)
+
+
     def test_exec_pack_u8_array(self):
         vm = apx.VM()
         data = bytearray(4)
@@ -375,6 +472,16 @@ class TestApxVM(unittest.TestCase):
         self.assertEqual(data, bytearray([1,2,3,4]))
         with self.assertRaises(ValueError) as context:
             vm.exec_instruction(vm.exec_pack_u8, [5])
+
+    def test_exec_unpack_s8_array(self):
+        vm = apx.VM()
+        data = bytearray([1,2,3,4])
+        vm.init_unpack_prog(len(data), data, 0)
+        self.assertEqual(vm.value, None)
+        self.assertEqual(vm.data_offset, 0)
+        vm.exec_instruction(vm.exec_unpack_u8, [4])
+        self.assertEqual(vm.value, [1,2,3,4])
+        self.assertEqual(vm.data_offset, 4)
 
     def test_exec_pack_u16_array(self):
         vm = apx.VM()
@@ -385,6 +492,16 @@ class TestApxVM(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             vm.exec_instruction(vm.exec_pack_u16, [5])
 
+    def test_exec_unpack_u16_array(self):
+        vm = apx.VM()
+        data = bytearray([0x0A,0, 0x34,0x12, 0xFF,0xFF, 22,0])
+        vm.init_unpack_prog(len(data), data, 0)
+        self.assertEqual(vm.value, None)
+        self.assertEqual(vm.data_offset, 0)
+        vm.exec_instruction(vm.exec_unpack_u16, [4])
+        self.assertEqual(vm.value, [0x0A,0x1234,65535,22])
+        self.assertEqual(vm.data_offset, 8)
+
     def test_exec_pack_u32_array(self):
         vm = apx.VM()
         data = bytearray(16)
@@ -393,6 +510,16 @@ class TestApxVM(unittest.TestCase):
         self.assertEqual(data, bytearray([19,0,0,0, 0x4e,0x61,0xbc,0, 0x78,0x56,0x34,0x12, 0x84,0x03,0,0]))
         with self.assertRaises(ValueError) as context:
             vm.exec_instruction(vm.exec_pack_u32, [5])
+
+    def test_exec_unpack_u32_array(self):
+        vm = apx.VM()
+        data = bytearray([19,0,0,0, 0x4e,0x61,0xbc,0, 0x78,0x56,0x34,0x12, 0x84,0x03,0,0])
+        vm.init_unpack_prog(len(data), data, 0)
+        self.assertEqual(vm.value, None)
+        self.assertEqual(vm.data_offset, 0)
+        vm.exec_instruction(vm.exec_unpack_u32, [4])
+        self.assertEqual(vm.value, [19, 12345678, 0x12345678, 900])
+        self.assertEqual(vm.data_offset, 16)            
 
     def test_exec_pack_s8_array(self):
         vm = apx.VM()
@@ -403,6 +530,16 @@ class TestApxVM(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             vm.exec_instruction(vm.exec_pack_u8, [5])
 
+    def test_exec_unpack_s8_array(self):
+        vm = apx.VM()
+        data = bytearray([1, 0xe9, 18, 0xa2])
+        vm.init_unpack_prog(len(data), data, 0)
+        self.assertEqual(vm.value, None)
+        self.assertEqual(vm.data_offset, 0)
+        vm.exec_instruction(vm.exec_unpack_s8, [4])
+        self.assertEqual(vm.value, [1,-23,18,-94])
+        self.assertEqual(vm.data_offset, 4)
+
     def test_exec_pack_s16_array(self):
         vm = apx.VM()
         data = bytearray(6)
@@ -411,6 +548,17 @@ class TestApxVM(unittest.TestCase):
         self.assertEqual(data, bytearray([0x6a,0xfc, 0x58,0x02, 42,0]))
         with self.assertRaises(ValueError) as context:
             vm.exec_instruction(vm.exec_pack_u8, [4])
+
+    def test_exec_unpack_s16_array(self):
+        vm = apx.VM()
+        data = bytearray([0x6a,0xfc, 0x58,0x02, 42,0])
+        vm.init_unpack_prog(len(data), data, 0)
+        self.assertEqual(vm.value, None)
+        self.assertEqual(vm.data_offset, 0)
+        vm.exec_instruction(vm.exec_unpack_s16, [3])
+        self.assertEqual(vm.value, [-918, 600, 42])
+        self.assertEqual(vm.data_offset, 6)
+            
 
     def test_exec_pack_s32_array(self):
         vm = apx.VM()
@@ -421,12 +569,64 @@ class TestApxVM(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             vm.exec_instruction(vm.exec_pack_u8, [3])
 
+    def test_exec_unpack_s32_array(self):
+        vm = apx.VM()
+        data = bytearray([0x60,0x79,0xfe,0xff, 0xa0, 0x86,0x01,0x00])
+        vm.init_unpack_prog(len(data), data, 0)
+        self.assertEqual(vm.value, None)
+        self.assertEqual(vm.data_offset, 0)
+        vm.exec_instruction(vm.exec_unpack_s32, [2])
+        self.assertEqual(vm.value, [-100000, 100000])
+        self.assertEqual(vm.data_offset, 8)
+
     def test_exec_pack_str(self):
         vm = apx.VM()
         data = bytearray(8)
         vm.init_pack_prog(value='Hello', data_len=len(data), data=data, data_offset=0)
         vm.exec_instruction(vm.exec_pack_str, [6])
         self.assertEqual(data, bytearray('Hello\0\0\0'.encode('utf-8')))
+
+    def test_exec_unpack_s32_array(self):
+        vm = apx.VM()
+        data = bytearray('Hello\0'.encode('utf-8'))
+        vm.init_unpack_prog(len(data), data, 0)
+        vm.exec_instruction(vm.exec_unpack_str, [6])
+        self.assertEqual(vm.value, 'Hello')
+        self.assertEqual(vm.data_offset, 6)
+    
+    def test_exec_pack_prog_u8(self):
+        prog = bytes([apx.OPCODE_PACK_PROG, 1,0,0,0, apx.OPCODE_PACK_U8])
+        data = bytearray(1)
+        vm = apx.VM()
+        vm.exec_pack_prog(prog, data, 0, 128)
+        self.assertEqual(data, bytearray([128]))
+        self.assertEqual(vm.data_offset, 1)
+
+    def test_exec_unpack_prog_u8(self):
+        prog = bytes([apx.OPCODE_UNPACK_PROG, 1,0,0,0, apx.OPCODE_UNPACK_U8])
+        data = bytearray([128])
+        vm = apx.VM()
+        vm.exec_unpack_prog(prog, data, 0)
+        self.assertEqual(vm.value, 128)
+        self.assertEqual(vm.data_offset, 1)
+
+    def test_exec_pack_prog_record(self):
+        prog = bytes([apx.OPCODE_PACK_PROG, 3,0,0,0, apx.OPCODE_RECORD_ENTER, apx.OPCODE_RECORD_SELECT])+'SoundId\0'.encode('ascii')
+        prog += bytes([apx.OPCODE_PACK_U16,apx.OPCODE_RECORD_SELECT])+'Volume\0'.encode('ascii')+bytes([apx.OPCODE_PACK_U8, apx.OPCODE_RECORD_LEAVE])
+        data = bytearray(3)
+        vm = apx.VM()
+        vm.exec_pack_prog(prog, data, 0, {'SoundId': 63, 'Volume': 12})
+        self.assertEqual(data, bytearray([63,0,12]))
+        self.assertEqual(vm.data_offset, 3)
+
+    def test_exec_unpack_prog_record(self):
+        prog = bytes([apx.OPCODE_UNPACK_PROG, 3,0,0,0, apx.OPCODE_RECORD_ENTER, apx.OPCODE_RECORD_SELECT])+'SoundId\0'.encode('ascii')
+        prog += bytes([apx.OPCODE_UNPACK_U16,apx.OPCODE_RECORD_SELECT])+'Volume\0'.encode('ascii')+bytes([apx.OPCODE_UNPACK_U8, apx.OPCODE_RECORD_LEAVE])
+        data = bytearray([63,0,12])
+        vm = apx.VM()
+        vm.exec_unpack_prog(prog, data, 0)
+        self.assertEqual(vm.value, {'SoundId': 63, 'Volume': 12})
+        self.assertEqual(vm.data_offset, 3)    
 
 if __name__ == '__main__':
     unittest.main()

@@ -20,7 +20,7 @@ class TestVmPackState(unittest.TestCase):
         data_offset = st.pack_u8(data, data_offset)
         self.assertEqual(data_offset, 3)
         self.assertEqual(data, bytearray([1,0x12,255]))
-    
+
     def test_pack_u16(self):
         st = apx.VmPackState(value=0)
         data = bytearray([0,0])
@@ -107,7 +107,7 @@ class TestVmPackState(unittest.TestCase):
         data_offset = st.pack_s32(data, 0)
         self.assertEqual(data_offset, apx.SINT32_LEN)
         self.assertEqual(data, bytearray([0x00, 0x00, 0x00, 0x80]))
-        
+
     def test_pack_u8_array(self):
         st = apx.VmPackState(value=[1,2,3])
         data = bytearray(3)
@@ -131,7 +131,7 @@ class TestVmPackState(unittest.TestCase):
         data_offset = st.pack_u32(data, data_offset, len(st.value))
         self.assertEqual(data_offset, apx.UINT32_LEN*len(st.value))
         self.assertEqual(data, bytearray([1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0]))
-        
+
     def test_pack_s8_array(self):
         st = apx.VmPackState(value=[-1,-2,-3])
         data = bytearray(3)
@@ -158,7 +158,7 @@ class TestVmPackState(unittest.TestCase):
 
     def test_pack_str_with_shorter_string_should_pad_with_zeros(self):
         data = bytearray(7)
-        data_offset = 0        
+        data_offset = 0
         st = apx.VmPackState(value='Select')
         data_offset = st.pack_str(data, data_offset, 7)
         self.assertEqual(data_offset, 7)
@@ -166,7 +166,7 @@ class TestVmPackState(unittest.TestCase):
 
     def test_pack_str_which_fits_exactly_shall_not_pad_with_zeros(self):
         data = bytearray(7)
-        data_offset = 0        
+        data_offset = 0
         st = apx.VmPackState(value='Selects')
         data_offset = st.pack_str(data, data_offset, 7)
         self.assertEqual(data_offset, 7)
@@ -174,12 +174,12 @@ class TestVmPackState(unittest.TestCase):
 
     def test_pack_str_which_is_too_long_should_truncate_to_fit(self):
         data = bytearray(7)
-        data_offset = 0        
+        data_offset = 0
         st = apx.VmPackState(value='Selected')
         data_offset = st.pack_str(data, data_offset, 7)
         self.assertEqual(data_offset, 7)
         self.assertEqual(data, bytearray('Selecte'.encode('utf-8')))
-        
+
 
     def test_pack_u8_to_record(self):
         st = apx.VmPackState(value={'a': 255, 'b': 7})
@@ -251,7 +251,7 @@ class TestVmPackState(unittest.TestCase):
         self.assertEqual(st.array_index, 3)
         st.array_leave()
         self.assertIsNone(st.array_index)
-    
+
     def test_pack_array_of_records_in_record(self):
         st = apx.VmPackState(value={'customers': [{'id': 1, 'amount': 2}, {'id': 2, 'amount': 10}],
                                     'priority': 4})
@@ -281,7 +281,7 @@ class TestVmPackState(unittest.TestCase):
         data_offset = st.pack_u8(data, data_offset)
         self.assertEqual(data, bytearray([1,2,2,10,0]))
         st.record_leave()
-        st.array_leave()        
+        st.array_leave()
         self.assertEqual(len(st.stack), 0)
         st.record_select('priority')
         data_offset = st.pack_u8(data, data_offset)
@@ -290,7 +290,7 @@ class TestVmPackState(unittest.TestCase):
         self.assertEqual(st.key, 'priority')
         st.record_leave()
         self.assertIsNone(st.key)
-    
+
     def test_pack_array_inside_array(self):
         st = apx.VmPackState(value=[ [1,2], [3,4] ])
         data = bytearray(4)
@@ -314,7 +314,7 @@ class TestVmPackState(unittest.TestCase):
         self.assertEqual(st.array_index, 2)
         st.array_leave()
         self.assertIsNone(st.array_index)
-        
+
 class TestVmUnpackState(unittest.TestCase):
 
     def test_record_enter(self):
@@ -473,8 +473,8 @@ class TestVmUnpackState(unittest.TestCase):
         self.assertIsNone(st.key)
         self.assertEqual(st.value, {'customers': [{'id': 1, 'amount': 2}, {'id': 2, 'amount': 10}],
                                     'priority': 4})
-        
-    def test_pack_array_inside_array(self):
+
+    def test_unpack_array_inside_array(self):
         st = apx.VmUnpackState()
         data = bytearray([1,2,3,4])
         data_offset=0
@@ -496,7 +496,150 @@ class TestVmUnpackState(unittest.TestCase):
         st.array_leave()
         self.assertIsNone(st.array_index)
         self.assertEqual(st.value, [[1,2], [3,4]])
+
+    def test_unpack_u16(self):
+        st = apx.VmUnpackState()
+        self.assertIsNone(st.value)
+        data = bytearray([0,0, 0x34,0x12, 0xFF,0xFF])
+        data_offset = 0
+        data_offset = st.unpack_u16(data, data_offset)
+        self.assertEqual(data_offset, 2)
+        self.assertEqual(st.value, 0)
+        data_offset = st.unpack_u16(data, data_offset)
+        self.assertEqual(data_offset, 4)
+        self.assertEqual(st.value, 0x1234)
+        data_offset = st.unpack_u16(data, data_offset)
+        self.assertEqual(data_offset, 6)
+        self.assertEqual(st.value, 65535)
+
+    def test_unpack_u32(self):
+        st = apx.VmUnpackState()
+        self.assertIsNone(st.value)
+        data = bytearray([0,0,0,0, 0x78,0x56,0x34,0x12, 0xFF,0xFF,0xFF,0xFF])
+        data_offset = 0
+        data_offset = st.unpack_u32(data, data_offset)
+        self.assertEqual(data_offset, 4)
+        self.assertEqual(st.value, 0)
+        data_offset = st.unpack_u32(data, data_offset)
+        self.assertEqual(data_offset, 8)
+        self.assertEqual(st.value, 0x12345678)
+        data_offset = st.unpack_u32(data, data_offset)
+        self.assertEqual(data_offset, 12)
+        self.assertEqual(st.value, 0xFFFFFFFF)
+
+    def test_unpack_s8(self):
+        st = apx.VmUnpackState()
+        self.assertIsNone(st.value)
+        data = bytearray([0x80,0xFF,0,127])
+        data_offset = 0
+        data_offset = st.unpack_s8(data, data_offset)
+        self.assertEqual(data_offset, 1)
+        self.assertEqual(st.value, -128)
+        data_offset = st.unpack_s8(data, data_offset)
+        self.assertEqual(data_offset, 2)
+        self.assertEqual(st.value, -1)
+        data_offset = st.unpack_s8(data, data_offset)
+        self.assertEqual(data_offset, 3)
+        self.assertEqual(st.value, 0)
+        data_offset = st.unpack_s8(data, data_offset)
+        self.assertEqual(data_offset, 4)
+        self.assertEqual(st.value, 127)
+
+    def test_unpack_s16(self):
+        st = apx.VmUnpackState()
+        self.assertIsNone(st.value)
+        data = bytearray([0,0x80, 0xFF,0xFF, 0,0, 0xFF,0x7F])
+        data_offset = 0
+        data_offset = st.unpack_s16(data, data_offset)
+        self.assertEqual(data_offset, 2)
+        self.assertEqual(st.value, -32768)
+        data_offset = st.unpack_s16(data, data_offset)
+        self.assertEqual(data_offset, 4)
+        self.assertEqual(st.value, -1)
+        data_offset = st.unpack_s16(data, data_offset)
+        self.assertEqual(data_offset, 6)
+        self.assertEqual(st.value, 0)
+        data_offset = st.unpack_s16(data, data_offset)
+        self.assertEqual(data_offset, 8)
+        self.assertEqual(st.value, 32767)
+
+    def test_unpack_s32(self):
+        st = apx.VmUnpackState()
+        self.assertIsNone(st.value)
+        data = bytearray([0,0,0,0x80, 0xFF,0xFF,0xFF,0xFF, 0,0,0,0, 0xFF,0xFF,0xFF,0x7F])
+        data_offset = 0
+        data_offset = st.unpack_s32(data, data_offset)
+        self.assertEqual(data_offset, 4)
+        self.assertEqual(st.value, -2147483648)
+        data_offset = st.unpack_s32(data, data_offset)
+        self.assertEqual(data_offset, 8)
+        self.assertEqual(st.value, -1)
+        data_offset = st.unpack_s32(data, data_offset)
+        self.assertEqual(data_offset, 12)
+        self.assertEqual(st.value, 0)
+        data_offset = st.unpack_s32(data, data_offset)
+        self.assertEqual(data_offset, 16)
+        self.assertEqual(st.value, 2147483647)
+
+    def test_unpack_s8_array(self):
+        st = apx.VmUnpackState()
+        self.assertIsNone(st.value)
+        data = bytearray([0x80,0xFF,0,127])
+        data_offset = 0
+        data_offset = st.unpack_s8(data, data_offset, 4)        
+        self.assertEqual(data_offset, 4)
+        self.assertEqual(st.value, [-128,-1,0,127])
+
+    def test_unpack_s16_array(self):
+        st = apx.VmUnpackState()
+        self.assertIsNone(st.value)
+        data = bytearray([0,0x80, 0xFF,0xFF, 0,0, 0xFF,0x7F])
+        data_offset = 0
+        data_offset = st.unpack_s16(data, data_offset, 4)
+        self.assertEqual(data_offset, 8)
+        self.assertEqual(st.value, [-32768, -1, 0, 32767])
         
+    def test_unpack_s32(self):
+        st = apx.VmUnpackState()
+        self.assertIsNone(st.value)
+        data = bytearray([0,0,0,0x80, 0xFF,0xFF,0xFF,0xFF, 0,0,0,0, 0xFF,0xFF,0xFF,0x7F])
+        data_offset = 0
+        data_offset = st.unpack_s32(data, data_offset, 4)
+        self.assertEqual(data_offset, 16)
+        self.assertEqual(st.value, [-2147483648, -1, 0, 2147483647])
+    
+    def test_unpack_str(self):
+        st = apx.VmUnpackState()
+        data = bytearray('Hello\0World\0\0\0'.encode('utf-8'))
+        data_offset = 0
+        data_offset = st.unpack_str(data, data_offset, 6)
+        self.assertEqual(data_offset, 6)
+        self.assertEqual(st.value, 'Hello')
+        data_offset = st.unpack_str(data, data_offset, 5)
+        self.assertEqual(data_offset, 11)
+        self.assertEqual(st.value, 'World')
+        data_offset = st.unpack_str(data, data_offset, 3)
+        self.assertEqual(data_offset, 14)
+        self.assertEqual(st.value, '')
+    
+    def test_unpack_str_in_record(self):
+        st = apx.VmUnpackState()
+        data = bytearray(bytes([14,0])+"Selection\0".encode('utf-8')+bytes([0]))
+        data_offset = 0
+        st.record_enter()
+        st.record_select('Position')
+        data_offset = st.unpack_u16(data, data_offset)
+        self.assertEqual(data_offset, 2)
+        st.record_select('Label')
+        data_offset = st.unpack_str(data, data_offset, 10)
+        self.assertEqual(data_offset, 12)
+        st.record_select('Index')
+        data_offset = st.unpack_u8(data, data_offset)
+        self.assertEqual(data_offset, 13)
+        st.record_leave()
+        self.assertEqual(st.value, {'Position': 14, 'Label': 'Selection', 'Index': 0})
+
         
+
 if __name__ == '__main__':
     unittest.main()
