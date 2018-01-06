@@ -37,6 +37,8 @@ class NodeData():
       self.name=self.node.name
       self.inPortDataMap = []
       self.outPortDataMap = []
+      self.inPortPrograms = []
+      self.outPortPrograms = []
       self.inPortDataFile = self._createInPortDataFile(self.node, compiler) if len(self.node.requirePorts)>0 else None
       self.outPortDataFile = self._createOutPortDataFile(self.node, compiler) if len(self.node.providePorts)>0 else None
       self.definitionFile = self._createDefinitionFile(node.name,apx_text)
@@ -49,10 +51,11 @@ class NodeData():
       offset=0
       init_data = bytearray()
       for port in node.requirePorts:
-         assert(port.portId is not None)
-         dataElement = port.dsg.resolveDataElement(node.dataTypes)
-         packLen = port.dsg.packLen(node.dataTypes)
-         self.mapInPort(port, packLen)         
+         assert(port.id is not None)
+         dataElement = port.dsg.resolve_data_element(node.dataTypes)
+         packLen = port.dsg.packLen()
+         self.mapInPort(port, packLen)
+         self.createUnpackProg(port, dataElement, compiler)
          offset+=packLen
          if port.attr is not None and port.attr.initValue is not None:
             init_data.extend(dataElement.createInitData(port.attr.initValue))
@@ -69,9 +72,10 @@ class NodeData():
       offset=0
       init_data = bytearray()
       for port in node.providePorts:
-         dataElement = port.dsg.resolveDataElement(node.dataTypes)
-         packLen = port.dsg.packLen(node.dataTypes)
-         self.mapOutPort(port, packLen)         
+         dataElement = port.dsg.resolve_data_element(node.dataTypes)
+         packLen = port.dsg.packLen()
+         self.mapOutPort(port, packLen)
+         self.createPackProg(port, dataElement, compiler)
          offset+=packLen
          if port.attr is not None and port.attr.initValue is not None:
             init_data.extend(dataElement.createInitData(port.attr.initValue))
@@ -127,3 +131,14 @@ class NodeData():
       for i in range(packLen):
          self.outPortDataMap.append(port)
    
+   def createPackProg(self, port, dataElement, compiler):
+      program = compiler.compilePackProg(dataElement)
+      if len(self.outPortPrograms) != port.id:
+         raise RuntimeError('port id {:d} of port {} is out of sync'.format(port.id, port.name))
+      self.outPortPrograms.append(program)
+   
+   def createUnpackProg(self, port, dataElement, compiler):
+      program = compiler.compileUnpackProg(dataElement)
+      if len(self.inPortPrograms) != port.id:
+         raise RuntimeError('port id {:d} of port {} is out of sync'.format(port.id, port.name))
+      self.inPortPrograms.append(program)

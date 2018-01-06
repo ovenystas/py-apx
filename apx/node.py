@@ -224,14 +224,14 @@ class Node:
          raise ValueError('Data type with name {} already exists'.format(dataType.name))
    
    def add_require_port(self, port):
-      port.id = len(self.dataTypes)
+      port.id = len(self.requirePorts)
       if port.dsg.dataElement.isReference:
          port.resolve_type(self.dataTypes)
       self.requirePorts.append(port)
       return port
       
    def add_provide_port(self, port):
-      port.id = len(self.dataTypes)
+      port.id = len(self.providePorts)
       if port.dsg.dataElement.isReference:
          port.resolve_type(self.dataTypes)
       self.providePorts.append(port)

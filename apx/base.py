@@ -150,7 +150,7 @@ class DataSignature:
    def __str__(self):
       return self.str
 
-   def packLen(self,typeList=None):
+   def packLen(self):
       result=0
       stack = []
       i = iter([self.dataElement])

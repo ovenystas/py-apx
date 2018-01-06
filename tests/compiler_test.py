@@ -352,6 +352,5 @@ class TestCompilerFromApxNode(unittest.TestCase):
       ])
       self.assertEqual(prog, expected)
 
-
 if __name__ == '__main__':
     unittest.main()
