@@ -2,7 +2,7 @@ import autosar
 import apx
 import math
 from copy import deepcopy
-from apx.parser import apx_split_line
+from apx.parser import apx_split_line, Parser
 
 def _getIntegerTypeCode(dataType):
    """
@@ -86,7 +86,10 @@ class Node:
       node = cls()
       node.import_autosar_swc(swc, name=name)
       return node
-         
+   
+   @classmethod
+   def from_text(cls, text):
+      return Parser().loads(text)      
    
    def _updateDataType(self, ws, port):
       portInterface = ws.find(port.portInterfaceRef)
@@ -167,43 +170,41 @@ class Node:
       if dataType is not None:         
          if isinstance(port, autosar.component.RequirePort):
             apx_port = apx.RequirePort(port.name, "T[%s]"%dataType.id, self._calcAttributeFromAutosarPort(ws, port))
-            self.requirePorts.append(apx_port)
-            return len(self.requirePorts)-1
+            return self.add_require_port(apx_port)
          elif isinstance(port, autosar.component.ProvidePort):
             apx_port = apx.ProvidePort(port.name, "T[%s]"%dataType.id, self._calcAttributeFromAutosarPort(ws, port))
-            self.providePorts.append(apx_port)
-            return len(self.providePorts)-1
+            return self.add_provide_port(apx_port)
          else:
             raise ValueError('invalid type '+str(type(port)))
-   
-   def append(self, port):
+      
+   def append(self, item):
       """
-      creates a new port in the node based in information in port argument
-      returns the port ID of the newly created port
+      Adds the item to the node.
+      Item can be of type DataType, RequirePort and ProvidePort
+      returns the object (port or datatype)
       """
-      if isinstance(port, apx.RequirePort):
-         self.requirePorts.append(port)
-         return len(self.requirePorts)-1
-      elif isinstance(port, apx.ProvidePort):
-         self.providePorts.append(port)
-         return len(self.providePorts)-1
-      elif isinstance(port, autosar.component.Port):
-         return self.add_autosar_port(port)
-      elif isinstance(port, str):
-         parts = apx_split_line(port)
+      if isinstance(item, apx.DataType):
+         return self.add_type(item)
+      if isinstance(item, apx.RequirePort):
+         return self.add_require_port(item)
+      elif isinstance(item, apx.ProvidePort):
+         return self.add_provide_port(item)
+      elif isinstance(item, autosar.component.Port):
+         return self.add_autosar_portitem(item)
+      elif isinstance(item, str):
+         parts = apx_split_line(item)
          if len(parts) != 4:
-            raise ValueError("invalid APX string: '%s'"%port)         
+            raise ValueError("invalid APX string: '%s'"%item)         
          if parts[0]=='R':
             newPort = apx.RequirePort(parts[1],parts[2],parts[3])
             if newPort is not None:
-               self.requirePorts.append(newPort)
-               return len(self.requirePorts)-1
-            raise ValueError('apx.RequirePort() returned None')
+               return self.add_require_port(newPort)
+            else:
+               raise ValueError('apx.RequirePort() returned None')
          elif parts[0]=='P':
             newPort = apx.ProvidePort(parts[1],parts[2],parts[3])
             if newPort is not None:
-               self.providePorts.append(newPort)
-               return len(self.providePorts)-1
+               return self.add_provide_port(newPort)
             else:
                raise ValueError('apx.ProvidePort() returned None')
          else:
@@ -215,8 +216,26 @@ class Node:
    def add_type(self, dataType):
       if dataType.name not in self.dataTypeMap:
          dataType.id=len(self.dataTypes)
+         dataType.dsg.resolve_data_element(self.dataTypes)
          self.dataTypeMap[dataType.name]=dataType
          self.dataTypes.append(dataType)
+         return dataType
+      else:
+         raise ValueError('Data type with name {} already exists'.format(dataType.name))
+   
+   def add_require_port(self, port):
+      port.id = len(self.dataTypes)
+      if port.dsg.dataElement.isReference:
+         port.resolve_type(self.dataTypes)
+      self.requirePorts.append(port)
+      return port
+      
+   def add_provide_port(self, port):
+      port.id = len(self.dataTypes)
+      if port.dsg.dataElement.isReference:
+         port.resolve_type(self.dataTypes)
+      self.providePorts.append(port)
+      return port
    
    def write(self, fp):
       """
@@ -277,6 +296,15 @@ class Node:
          if elem.name == name:
             return elem
    
+   def resolve_types(self):
+      """
+      Resolves all integer and string type references with their actual object counter-parts
+      """
+      for port in self.requirePorts+self.providePorts:
+         if port.dsg.dataElement.isReference:
+            port.resolve_type(self.dataTypes)
+
+   
 class AutosarPort:
    """
    An AUTOSAR port (base type)
@@ -284,8 +312,6 @@ class AutosarPort:
    def __init__(self,name,typeId):
       self.name = name
       self.typeId = typeId
-
-
 
 class AutosarRequirePort(AutosarPort):
    def __init__(self, name, typeId, ws=None, port=None):

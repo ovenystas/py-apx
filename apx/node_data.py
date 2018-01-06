@@ -1,6 +1,7 @@
 import apx
 import abc
 import struct
+import apx.compiler
 from collections import namedtuple
 
 PortMapRange = namedtuple('PortMapRange', "startOffset endOffset port")
@@ -19,37 +20,39 @@ class NodeData():
    APX NodeData class
    """
 
-   def __init__(self,node):
-      parser = apx.Parser()
+   def __init__(self,node):      
       if isinstance(node, apx.Node):
           self.node=node
           context=apx.Context()
           context.append(node)
           apx_text=context.dumps()
       elif isinstance(node, str):
+         parser = apx.Parser()
          apx_text=node
          self.node = parser.loads(apx_text)
       else:
          raise NotImplementedError(type(node))
 
+      compiler = apx.compiler.Compiler()
       self.name=self.node.name
       self.inPortDataMap = []
       self.outPortDataMap = []
-      self.inPortDataFile = self._createInPortDataFile(self.node) if len(self.node.requirePorts)>0 else None
-      self.outPortDataFile = self._createOutPortDataFile(self.node) if len(self.node.providePorts)>0 else None
+      self.inPortDataFile = self._createInPortDataFile(self.node, compiler) if len(self.node.requirePorts)>0 else None
+      self.outPortDataFile = self._createOutPortDataFile(self.node, compiler) if len(self.node.providePorts)>0 else None
       self.definitionFile = self._createDefinitionFile(node.name,apx_text)
       if self.inPortDataFile is not None:
          self.inPortDataFile.nodeDataHandler=self
       self.nodeDataClient=None
 
 
-   def _createInPortDataFile(self, node):
+   def _createInPortDataFile(self, node, compiler):
       offset=0
       init_data = bytearray()
       for port in node.requirePorts:
+         assert(port.portId is not None)
          dataElement = port.dsg.resolveDataElement(node.dataTypes)
-         packLen = port.dsg.packLen(node.dataTypes)         
-         self.inPortDataMap.append(PortMapRange(offset, offset+packLen, port))
+         packLen = port.dsg.packLen(node.dataTypes)
+         self.mapInPort(port, packLen)         
          offset+=packLen
          if port.attr is not None and port.attr.initValue is not None:
             init_data.extend(dataElement.createInitData(port.attr.initValue))
@@ -62,13 +65,13 @@ class NodeData():
          return file
       return None
 
-   def _createOutPortDataFile(self, node):
+   def _createOutPortDataFile(self, node, compiler):
       offset=0
       init_data = bytearray()
       for port in node.providePorts:
          dataElement = port.dsg.resolveDataElement(node.dataTypes)
-         packLen = port.dsg.packLen(node.dataTypes)         
-         self.outPortDataMap.append(PortMapRange(offset, offset+packLen, port))
+         packLen = port.dsg.packLen(node.dataTypes)
+         self.mapOutPort(port, packLen)         
          offset+=packLen
          if port.attr is not None and port.attr.initValue is not None:
             init_data.extend(dataElement.createInitData(port.attr.initValue))
@@ -116,3 +119,11 @@ class NodeData():
    def _unpackRequirePort(self, port, data):
       raise NotImplementedError('_unpackRequirePort')
 
+   def mapInPort(self, port, packLen):
+      for i in range(packLen):
+         self.inPortDataMap.append(port)
+   
+   def mapOutPort(self, port, packLen):
+      for i in range(packLen):
+         self.outPortDataMap.append(port)
+   

@@ -5,24 +5,28 @@ import unittest
 import remotefile
 import time
 
-class TestFileManager(unittest.TestCase):
+class TestNodeData(unittest.TestCase):
  
-   def setUp(self):
-      pass
-   
    def test_portMap(self):
       node = apx.Node('TestNode')
-      node.dataTypes.append(apx.DataType('InactiveActive_T','C(0,3)'))      
-      node.providePorts.append(apx.ProvidePort('VehicleSpeed','S','=65535'))
-      node.providePorts.append(apx.ProvidePort('MainBeam','T[0]','=3'))
-      node.providePorts.append(apx.ProvidePort('FuelLevel','C'))
-      node.providePorts.append(apx.ProvidePort('ParkBrakeActive','T[0]','=3'))
-      node.requirePorts.append(apx.RequirePort('RheostatLevelRqst','C','=255'))
-      node.requirePorts.append(apx.RequirePort('StrSignal','a[4]','=""'))
-      node.requirePorts.append(apx.RequirePort('RecordSignal','{"Name"a[8]"Id"L"Data"S[3]}','={"",0xFFFFFFFF,{0,0,0}}'))
-      nodeData = apx.NodeData(node)
-      
-
+      node.add_type(apx.DataType('InactiveActive_T','C(0,3)'))
+      node.append(apx.ProvidePort('VehicleSpeed','S','=65535'))
+      node.append(apx.ProvidePort('MainBeam','T[0]','=3'))
+      node.append(apx.ProvidePort('FuelLevel','C'))
+      node.append(apx.ProvidePort('ParkBrakeActive','T[0]','=3'))
+      node.append(apx.RequirePort('RheostatLevelRqst','C','=255'))
+      node.append(apx.RequirePort('StrSignal','a[4]','=""'))
+      node.append(apx.RequirePort('RecordSignal','{"Name"a[8]"Id"L"Data"S[3]}','={"",0xFFFFFFFF,{0,0,0}}'))
+      node_data = apx.NodeData(node)
+      self.assertEqual(len(node_data.inPortDataMap), 23)
+      self.assertEqual(node_data.inPortDataMap[0].name, 'RheostatLevelRqst')
+      self.assertEqual(node_data.inPortDataMap[0].portId, 0)
+      for i in range(1, 5):
+         self.assertEqual(node_data.inPortDataMap[i].name, 'StrSignal')
+         self.assertEqual(node_data.inPortDataMap[i].portId, 1)
+      for i in range(5, 23):
+         self.assertEqual(node_data.inPortDataMap[i].name, 'RecordSignal')
+         self.assertEqual(node_data.inPortDataMap[i].portId, 2)
 
 if __name__ == '__main__':
     unittest.main()   

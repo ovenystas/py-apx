@@ -33,6 +33,12 @@ P"VehicleSpeed"T[5]:=0xFFFF
       self.assertEqual(len(node.dataTypes), 6)
       self.assertEqual(len(node.requirePorts), 4)
       self.assertEqual(len(node.providePorts), 2)
+      self.assertIs(node.requirePorts[0].dsg.dataElement.typeReference, node.dataTypes[0])
+      self.assertIs(node.requirePorts[1].dsg.dataElement.typeReference, node.dataTypes[1])
+      self.assertIs(node.requirePorts[2].dsg.dataElement.typeReference, node.dataTypes[2])
+      self.assertIs(node.requirePorts[3].dsg.dataElement.typeReference, node.dataTypes[3])
+      self.assertIs(node.providePorts[0].dsg.dataElement.typeReference, node.dataTypes[4])
+      self.assertIs(node.providePorts[1].dsg.dataElement.typeReference, node.dataTypes[5])
       
 
       

@@ -192,15 +192,16 @@ class TestDataSignatureParsing(unittest.TestCase):
         self.assertEqual(child3.maxVal, 59)
     
     def test_typeRef(self):
-        (dataElement, remain) = apx.DataSignature.parseDataSignature('T[0]')
+        type_list = [apx.DataType('TestType_T', 'S(0,10000)')]
+        (dataElement, remain) = apx.DataSignature.parseDataSignature('T[0]', type_list)
         self.assertIsInstance(dataElement, apx.DataElement)
         self.assertEqual(dataElement.typeCode, apx.REFERENCE_TYPE_CODE)
-        self.assertEqual(dataElement.typeReference, 0)
+        self.assertIs(dataElement.typeReference, type_list[0])
 
-        (dataElement, remain) = apx.DataSignature.parseDataSignature('T["TypeName"]')
+        (dataElement, remain) = apx.DataSignature.parseDataSignature('T["TestType_T"]', type_list)
         self.assertIsInstance(dataElement, apx.DataElement)
         self.assertEqual(dataElement.typeCode, apx.REFERENCE_TYPE_CODE)
-        self.assertEqual(dataElement.typeReference, "TypeName")
+        self.assertEqual(dataElement.typeReference, type_list[0])
 
 class TestDataSignatureInitValues(unittest.TestCase):
     
@@ -346,9 +347,9 @@ class TestDataSignatureInitValues(unittest.TestCase):
 
     def test_create_init_data_reference(self):
         typeList = [apx.base.DataType('TestType1','S[2]')]
-        dsg = apx.base.DataSignature('T[0]')
+        dsg = apx.base.DataSignature('T[0]', typeList)
         attr = apx.base.PortAttribute('={0x1234,0x5678}')
-        data = dsg.createInitData(attr.initValue, typeList)
+        data = dsg.createInitData(attr.initValue)
         self.assertEqual(b'\x34\x12\x78\x56', bytes(data))
 
 
@@ -415,15 +416,13 @@ class test_elem_size(unittest.TestCase):
         typeList.append(apx.DataType("TestType2", "a[18]"))
         typeList.append(apx.DataType("TestType3", 'C'))
         typeList.append(apx.DataType("TestType3", '{"Name"a[16]"ID"L}'))        
-        dsg = apx.DataSignature('T[3]')
-        with self.assertRaises(ValueError):
-            dsg.packLen(None)        
+        dsg = apx.DataSignature('T[3]', typeList)
         self.assertEqual(dsg.packLen(typeList), 20)
-        dsg = apx.DataSignature('T[2]')
+        dsg = apx.DataSignature('T[2]', typeList)
         self.assertEqual(dsg.packLen(typeList), 1)
-        dsg = apx.DataSignature('T[1]')
+        dsg = apx.DataSignature('T[1]', typeList)
         self.assertEqual(dsg.packLen(typeList), 18)
-        dsg = apx.DataSignature('T[0]')
+        dsg = apx.DataSignature('T[0]', typeList)
         self.assertEqual(dsg.packLen(typeList), 8)
       
             

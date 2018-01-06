@@ -160,10 +160,11 @@ class TestDataSignature(unittest.TestCase):
         self.assertEqual(child2.typeCode, apx.UINT32_TYPE_CODE)
         
     def test_create_typeref(self):
-        elem = apx.DataElement.TypeReference(8)
+        dataType = apx.DataType('TestType_T', 'C(0,1)')
+        elem = apx.DataElement.TypeReference(dataType)
         self.assertIsNone(elem.name)
         self.assertEqual(elem.typeCode, apx.REFERENCE_TYPE_CODE)
-        self.assertEqual(elem.typeReference, 8)
+        self.assertIs(elem.typeReference, dataType)
         self.assertIsNone(elem.minVal)
         self.assertIsNone(elem.maxVal)
         self.assertIsNone(elem.arrayLen)

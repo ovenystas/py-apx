@@ -6,6 +6,17 @@ class Compiler:
    def __init__(self):
       pass
    
+   def exec(self, port):
+      """
+      Compiles APX port into a byte-code program
+      """
+      if isinstance(port, RequirePort):
+         return self.compileUnpackProg(port.data_element)
+      elif isinstance(port, ProvidePort):
+         return self.compilePackProg(port.data_element)
+      else:
+         raise ValueError('Not an APX port')
+   
    def compilePackProg(self, dataElement):
       self.prog = bytearray()
       self._packDataElement(dataElement, True)
@@ -58,6 +69,10 @@ class Compiler:
          return self._unpackSingleElement(dataElement, header)
    
    def _packSingleElement(self, dataElement, header):
+      if dataElement.typeCode == REFERENCE_TYPE_CODE:
+         assert(isinstance(dataElement.typeReference, DataType))
+         dataElement = dataElement.typeReference.dsg.dataElement
+      
       if dataElement.typeCode == UINT8_TYPE_CODE:
          if header: self._packProgHeader(UINT8_LEN)
          self.prog.append(OPCODE_PACK_U8)
@@ -95,6 +110,10 @@ class Compiler:
          raise NotImplementedError(dataElement.typeCode)
       
    def _unpackSingleElement(self, dataElement, header):
+      if dataElement.typeCode == REFERENCE_TYPE_CODE:
+         assert(isinstance(dataElement.typeReference, DataType))
+         dataElement = dataElement.typeReference.dsg.dataElement
+
       if dataElement.typeCode == UINT8_TYPE_CODE:
          if header: self._unpackProgHeader(UINT8_LEN)
          self.prog.append(OPCODE_UNPACK_U8)
