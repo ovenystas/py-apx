@@ -11,12 +11,13 @@ def create_node_and_data():
    node.append(apx.ProvidePort('MainBeam','T[0]','=3'))
    node.append(apx.ProvidePort('FuelLevel','C'))
    node.append(apx.ProvidePort('ParkBrakeActive','T[0]','=3'))
+   node.append(apx.ProvidePort('ComplexRecordSignal','{"SensorData"{"x"S"y"S"z"S}"TimeStamp"L}'))
    node.append(apx.RequirePort('RheostatLevelRqst','C','=255'))
    node.append(apx.RequirePort('StrSignal','a[8]','=""'))
    node.append(apx.RequirePort('RecordSignal','{"Name"a[8]"Id"L"Data"S[3]}','={"",0xFFFFFFFF,{0,0,0}}'))
    return node
 
-class TestNodeData(unittest.TestCase):
+class TestNodeDataCompile(unittest.TestCase):
 
    def test_port_map_and_compiled_programs(self):
       node = create_node_and_data()
@@ -35,7 +36,7 @@ class TestNodeData(unittest.TestCase):
          self.assertEqual(node_data.inPortByteMap[i].name, 'RecordSignal')
          self.assertEqual(node_data.inPortByteMap[i].id, 2)
       
-      self.assertEqual(len(node_data.outPortDataMap), 4)
+      self.assertEqual(len(node_data.outPortDataMap), 5)
       elem = node_data.outPortDataMap[0]
       self.assertEqual(elem.data_offset, 0)
       self.assertEqual(elem.data_len, 2)
@@ -51,7 +52,11 @@ class TestNodeData(unittest.TestCase):
       elem = node_data.outPortDataMap[3]
       self.assertEqual(elem.data_offset, 4)
       self.assertEqual(elem.data_len, 1)
-      self.assertIs(elem.port, node.find('ParkBrakeActive'))      
+      self.assertIs(elem.port, node.find('ParkBrakeActive'))
+      elem = node_data.outPortDataMap[4]
+      self.assertEqual(elem.data_offset, 5)
+      self.assertEqual(elem.data_len, 10)
+      self.assertIs(elem.port, node.find('ComplexRecordSignal'))
 
       expected = bytes([apx.OPCODE_PACK_PROG, apx.UINT16_LEN,0,0,0,
                         apx.OPCODE_PACK_U16])
@@ -61,6 +66,23 @@ class TestNodeData(unittest.TestCase):
       self.assertEqual(node_data.outPortPrograms[1], expected)
       self.assertEqual(node_data.outPortPrograms[2], expected)
       self.assertEqual(node_data.outPortPrograms[3], expected)
+      expected = bytes([apx.OPCODE_PACK_PROG, (3*apx.UINT16_LEN+apx.UINT32_LEN),0,0,0,
+                        apx.OPCODE_RECORD_ENTER,
+                        apx.OPCODE_RECORD_SELECT])+"SensorData\0".encode('ascii')+bytes([
+                        apx.OPCODE_RECORD_ENTER,
+                        apx.OPCODE_RECORD_SELECT])+"x\0".encode('ascii')+bytes([
+                        apx.OPCODE_PACK_U16,
+                        apx.OPCODE_RECORD_SELECT])+"y\0".encode('ascii')+bytes([
+                        apx.OPCODE_PACK_U16,
+                        apx.OPCODE_RECORD_SELECT])+"z\0".encode('ascii')+bytes([
+                        apx.OPCODE_PACK_U16,
+                        apx.OPCODE_RECORD_LEAVE,
+                        apx.OPCODE_RECORD_SELECT])+"TimeStamp\0".encode('ascii')+bytes([
+                        apx.OPCODE_PACK_U32,
+                        apx.OPCODE_RECORD_LEAVE                        
+                        ])
+      self.assertEqual(node_data.outPortPrograms[4], expected)      
+      
       expected = bytes([apx.OPCODE_UNPACK_PROG, apx.UINT8_LEN,0,0,0,
                         apx.OPCODE_UNPACK_U8])
       self.assertEqual(node_data.inPortPrograms[0], expected)
@@ -79,20 +101,24 @@ class TestNodeData(unittest.TestCase):
                         ])
       self.assertEqual(node_data.inPortPrograms[2], expected)
 
+
+
+class TestNodeDataRead(unittest.TestCase):
+   
    def test_read_port_RheostatLevelRqst(self):
       node = create_node_and_data()
       port_RheostatLevelRqst = node.find('RheostatLevelRqst')
       node_data = apx.NodeData(node)
       input_file = node_data.inPortDataFile
       #verify init value
-      self.assertEqual(node_data.readRequirePort(port_RheostatLevelRqst), 255)
+      self.assertEqual(node_data.read_require_port(port_RheostatLevelRqst), 255)
       #write to input file
       input_file.write(0, bytes([0]))
-      self.assertEqual(node_data.readRequirePort(port_RheostatLevelRqst), 0)
+      self.assertEqual(node_data.read_require_port(port_RheostatLevelRqst), 0)
       input_file.write(0, bytes([10]))
-      self.assertEqual(node_data.readRequirePort(port_RheostatLevelRqst), 10)
+      self.assertEqual(node_data.read_require_port(port_RheostatLevelRqst), 10)
       input_file.write(0, bytes([255]))
-      self.assertEqual(node_data.readRequirePort(port_RheostatLevelRqst), 255)
+      self.assertEqual(node_data.read_require_port(port_RheostatLevelRqst), 255)
 
    def test_read_port_StrSignal(self):
       node = create_node_and_data()
@@ -100,18 +126,18 @@ class TestNodeData(unittest.TestCase):
       node_data = apx.NodeData(node)
       input_file = node_data.inPortDataFile
       #verify init value
-      self.assertEqual(node_data.readRequirePort(port_StrSignal), "")
+      self.assertEqual(node_data.read_require_port(port_StrSignal), "")
       #write to input file
       input_file.write(1, 'Hello\0\0\0'.encode('utf-8'))
-      self.assertEqual(node_data.readRequirePort(port_StrSignal), "Hello")
+      self.assertEqual(node_data.read_require_port(port_StrSignal), "Hello")
 
       input_file.write(1, 'Selected'.encode('utf-8'))
-      self.assertEqual(node_data.readRequirePort(port_StrSignal), "Selected")
+      self.assertEqual(node_data.read_require_port(port_StrSignal), "Selected")
 
       input_file.write(1, 'a\0\0\0\0\0\0'.encode('utf-8'))
-      self.assertEqual(node_data.readRequirePort(port_StrSignal), "a")
+      self.assertEqual(node_data.read_require_port(port_StrSignal), "a")
       input_file.write(1, bytes(8))
-      self.assertEqual(node_data.readRequirePort(port_StrSignal), "")
+      self.assertEqual(node_data.read_require_port(port_StrSignal), "")
 
    def test_read_RecordSignal(self):
       node = create_node_and_data()
@@ -119,18 +145,18 @@ class TestNodeData(unittest.TestCase):
       node_data = apx.NodeData(node)
       input_file = node_data.inPortDataFile
       #verify init value
-      self.assertEqual(node_data.readRequirePort(port_RecordSignal), {'Name': "", 'Id':0xFFFFFFFF, 'Data': [0,0,0]})
+      self.assertEqual(node_data.read_require_port(port_RecordSignal), {'Name': "", 'Id':0xFFFFFFFF, 'Data': [0,0,0]})
       name_offset = 9
       id_offset = 17
       data_offset = 21
       input_file.write(name_offset, "abcdefgh".encode('utf-8'))
-      self.assertEqual(node_data.readRequirePort(port_RecordSignal), {'Name': "abcdefgh", 'Id':0xFFFFFFFF, 'Data': [0,0,0]})
+      self.assertEqual(node_data.read_require_port(port_RecordSignal), {'Name': "abcdefgh", 'Id':0xFFFFFFFF, 'Data': [0,0,0]})
       input_file.write(id_offset, struct.pack("<L",0x12345678))
-      self.assertEqual(node_data.readRequirePort(port_RecordSignal), {'Name': "abcdefgh", 'Id':0x12345678, 'Data': [0,0,0]})
+      self.assertEqual(node_data.read_require_port(port_RecordSignal), {'Name': "abcdefgh", 'Id':0x12345678, 'Data': [0,0,0]})
       input_file.write(data_offset, struct.pack("<HHH",0,0,1))
-      self.assertEqual(node_data.readRequirePort(port_RecordSignal), {'Name': "abcdefgh", 'Id':0x12345678, 'Data': [0,0,1]})
+      self.assertEqual(node_data.read_require_port(port_RecordSignal), {'Name': "abcdefgh", 'Id':0x12345678, 'Data': [0,0,1]})
       input_file.write(data_offset, struct.pack("<HHH",18000,2,10))
-      self.assertEqual(node_data.readRequirePort(port_RecordSignal), {'Name': "abcdefgh", 'Id':0x12345678, 'Data': [18000,2,10]})
+      self.assertEqual(node_data.read_require_port(port_RecordSignal), {'Name': "abcdefgh", 'Id':0x12345678, 'Data': [18000,2,10]})
       
    def test_byte_to_port_all(self):
       node = create_node_and_data()
@@ -261,6 +287,22 @@ class TestNodeData(unittest.TestCase):
       self.assertEqual(len(call_history), 4)
       self.assertEqual(call_history[-1][0], node.find('RecordSignal'))
       self.assertEqual(call_history[-1][1], {'Name': "Abc", 'Id': 918, 'Data':[1000,2000,4000]})
+
+class TestNodeDataWrite(unittest.TestCase):
+   
+   def test_write_VehicleSpeed(self):
+      node = create_node_and_data()
+      node_data = apx.NodeData(node)
+      VehicleSpeed_port = node.find('VehicleSpeed')
+      VehicleSpeed_offset = 0
+      VehicleSpeed_length = 2
+      output_file = node_data.outPortDataFile
+      #verify init value
+      self.assertEqual(output_file.read(VehicleSpeed_offset, VehicleSpeed_length), bytes([0xFF, 0xFF]))
+      node_data.write_provide_port(VehicleSpeed_port, 0x1234)      
+      self.assertEqual(output_file.read(VehicleSpeed_offset, VehicleSpeed_length), bytes([0x34, 0x12]))
+      
+
       
 if __name__ == '__main__':
     unittest.main()

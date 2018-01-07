@@ -20,7 +20,7 @@ class NodeData():
    APX NodeData class
    """
 
-   def __init__(self,node):      
+   def __init__(self,node):
       if isinstance(node, apx.Node):
           self.node=node
           context=apx.Context()
@@ -48,7 +48,7 @@ class NodeData():
       if self.inPortDataFile is not None:
          self.inPortDataFile.nodeDataHandler=self
       self.nodeDataClient=None
-   
+
    def _createInPortDataFile(self, node, compiler):
       offset=0
       init_data = bytearray()
@@ -66,7 +66,7 @@ class NodeData():
       file_len=offset
       assert(len(init_data)==file_len)
       if file_len > 0:
-         file = apx.InputFile(node.name+'.in', file_len, init_data)         
+         file = apx.InputFile(node.name+'.in', file_len, init_data)
          return file
       return None
 
@@ -82,11 +82,11 @@ class NodeData():
          if port.attr is not None and port.attr.initValue is not None:
             init_data.extend(dataElement.createInitData(port.attr.initValue))
          else:
-            init_data.extend(bytes(packLen)) #initialize with zeros if no init value has been selected         
+            init_data.extend(bytes(packLen)) #initialize with zeros if no init value has been selected
       file_len=offset
       assert(len(init_data)==file_len)
       if file_len > 0:
-         file = apx.OutputFile(node.name+'.out', file_len, init_data)         
+         file = apx.OutputFile(node.name+'.out', file_len, init_data)
          return file
       return None
 
@@ -110,7 +110,7 @@ class NodeData():
       Returns an iterator which yields a sequence of ports triggered by the data update
       """
       data_offset = start_offset
-      end_offset = start_offset+data_len      
+      end_offset = start_offset+data_len
       file_len = len(self.inPortByteMap)
       if start_offset > file_len:
          raise ValueError('start_offset ({:d}) is beyond length of file ({:d})'.format(start_offset, file_len))
@@ -123,28 +123,39 @@ class NodeData():
          next_offset = mapping.data_offset+mapping.data_len
          yield port,mapping.data_offset,mapping.data_len
          data_offset=next_offset
-      
-   
-   def writeProvidePort(self, portId, value):
-      port = self.node.providePorts[portId]
-      dataMap = self.outPortDataMap[portId]
-      dataElement = port.dsg.resolveDataElement(node.dataTypes)      
-      
-      raise NotImplementedError('writeProvidePort')
-   
-   def readRequirePort(self, port_id):
+
+
+   def write_provide_port(self, port_id, value):
       if isinstance(port_id, apx.Port):
          port_id = port_id.id
       if not isinstance(port_id, int):
-         raise Value('port_id must be integer')
+         raise ValueError('port_id must be integer')
+      port_map = self.outPortDataMap[port_id]
+      assert(port_id == port_map.port.id)
+      return self._packProvidePort(port_id, port_map.data_offset, port_map.data_len, value)
+
+   def _packProvidePort(self, port_id, data_offset, data_len, value):
+      program = self.outPortPrograms[port_id]
+      data = bytearray(data_len)
+      self.lock.acquire()
+      self.vm.exec_pack_prog(program, data, 0, value)
+      self.lock.release()
+      self.outPortDataFile.write(data_offset, data)
+
+   def read_require_port(self, port_id):
+      if isinstance(port_id, apx.Port):
+         port_id = port_id.id
+      if not isinstance(port_id, int):
+         raise ValueError('port_id must be integer')
       port_map = self.inPortDataMap[port_id]
+      assert(port_id == port_map.port.id)
       return self._unpackRequirePort(port_id, port_map.data_offset, port_map.data_len)
-      
+
    def _unpackRequirePort(self, port_id, data_offset, data_len):
       program = self.inPortPrograms[port_id]
       data=self.inPortDataFile.read(data_offset, data_len)
       if data is None:
-         raise RuntimeError('Failed to read data at offset={:d}, len={:d}'.format(data_offset, data_len))      
+         raise RuntimeError('Failed to read data at offset={:d}, len={:d}'.format(data_offset, data_len))
       self.lock.acquire()
       self.vm.exec_unpack_prog(program, data, 0)
       value = self.vm.value
@@ -156,17 +167,17 @@ class NodeData():
       self.inPortDataMap.append(elem)
       for i in range(data_len):
          self.inPortByteMap.append(port)
-   
+
    def mapOutPort(self, port, start_offset, data_len):
       elem = PortMapRange(start_offset, data_len, port)
       self.outPortDataMap.append(elem)
-   
+
    def createPackProg(self, port, dataElement, compiler):
       program = compiler.compilePackProg(dataElement)
       if len(self.outPortPrograms) != port.id:
          raise RuntimeError('port id {:d} of port {} is out of sync'.format(port.id, port.name))
       self.outPortPrograms.append(program)
-   
+
    def createUnpackProg(self, port, dataElement, compiler):
       program = compiler.compileUnpackProg(dataElement)
       if len(self.inPortPrograms) != port.id:
