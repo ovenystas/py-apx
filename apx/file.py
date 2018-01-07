@@ -67,7 +67,7 @@ class InputFile(File):
       super().__init__(name, length, init_data)
       self.nodeDataHandler=None
    
-   def write(self, offset: int, data: bytes, more_bit : bool):      
+   def write(self, offset: int, data: bytes, more_bit : bool = False):
       retval = super().write(offset, data)
       if (retval>=0) and (more_bit == False):
          if self.nodeDataHandler is not None:

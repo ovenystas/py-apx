@@ -1,10 +1,10 @@
 import apx
 import abc
 import struct
-import apx.compiler
 from collections import namedtuple
+import threading
 
-PortMapRange = namedtuple('PortMapRange', "startOffset endOffset port")
+PortMapRange = namedtuple('PortMapRange', "data_offset data_len port")
 
 class NodeDataClient(metaclass=abc.ABCMeta):
    @abc.abstractmethod
@@ -35,6 +35,7 @@ class NodeData():
 
       compiler = apx.compiler.Compiler()
       self.name=self.node.name
+      self.inPortByteMap = []
       self.inPortDataMap = []
       self.outPortDataMap = []
       self.inPortPrograms = []
@@ -42,6 +43,8 @@ class NodeData():
       self.inPortDataFile = self._createInPortDataFile(self.node, compiler) if len(self.node.requirePorts)>0 else None
       self.outPortDataFile = self._createOutPortDataFile(self.node, compiler) if len(self.node.providePorts)>0 else None
       self.definitionFile = self._createDefinitionFile(node.name,apx_text)
+      self.vm = apx.VM()
+      self.lock=threading.Lock() #the virtual machine is not thread-safe, use this lock to protect it in case users try to read/write ports from multiple threads
       if self.inPortDataFile is not None:
          self.inPortDataFile.nodeDataHandler=self
       self.nodeDataClient=None
@@ -54,7 +57,7 @@ class NodeData():
          assert(port.id is not None)
          dataElement = port.dsg.resolve_data_element(node.dataTypes)
          packLen = port.dsg.packLen()
-         self.mapInPort(port, packLen)
+         self.mapInPort(port, offset, packLen)
          self.createUnpackProg(port, dataElement, compiler)
          offset+=packLen
          if port.attr is not None and port.attr.initValue is not None:
@@ -74,7 +77,7 @@ class NodeData():
       for port in node.providePorts:
          dataElement = port.dsg.resolve_data_element(node.dataTypes)
          packLen = port.dsg.packLen()
-         self.mapOutPort(port, packLen)
+         self.mapOutPort(port, offset, packLen)
          self.createPackProg(port, dataElement, compiler)
          offset+=packLen
          if port.attr is not None and port.attr.initValue is not None:
@@ -115,21 +118,37 @@ class NodeData():
 
    def writeProvidePort(self, portId, value):
       port = self.node.providePorts[portId]
-      portMapElem = self.outPortDataMap[portId]
-      dataElement = port.dsg.resolveDataElement(node.dataTypes)
+      dataMap = self.outPortDataMap[portId]
+      dataElement = port.dsg.resolveDataElement(node.dataTypes)      
       
       raise NotImplementedError('writeProvidePort')
-
-   def _unpackRequirePort(self, port, data):
-      raise NotImplementedError('_unpackRequirePort')
-
-   def mapInPort(self, port, packLen):
-      for i in range(packLen):
-         self.inPortDataMap.append(port)
    
-   def mapOutPort(self, port, packLen):
-      for i in range(packLen):
-         self.outPortDataMap.append(port)
+   def readRequirePort(self, port_id):
+      if isinstance(port_id, apx.Port):
+         port_id = port_id.id
+      if not isinstance(port_id, int):
+         raise Value('port_id must be integer')
+      port_map = self.inPortDataMap[port_id]
+      return self._unpackRequirePort(port_id, port_map.data_offset, port_map.data_len)
+      
+   def _unpackRequirePort(self, port_id, data_offset, data_len):
+      program = self.inPortPrograms[port_id]
+      data=self.inPortDataFile.read(data_offset, data_len)
+      self.lock.acquire()
+      self.vm.exec_unpack_prog(program, data, 0)
+      value = self.vm.value
+      self.lock.release()
+      return value
+
+   def mapInPort(self, port, start_offset, data_len):
+      elem = PortMapRange(start_offset, data_len, port)
+      self.inPortDataMap.append(elem)
+      for i in range(data_len):
+         self.inPortByteMap.append(port)
+   
+   def mapOutPort(self, port, start_offset, data_len):
+      elem = PortMapRange(start_offset, data_len, port)
+      self.outPortDataMap.append(elem)
    
    def createPackProg(self, port, dataElement, compiler):
       program = compiler.compilePackProg(dataElement)
