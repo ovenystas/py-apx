@@ -8,7 +8,7 @@ PortMapRange = namedtuple('PortMapRange', "data_offset data_len port")
 
 class NodeDataClient(metaclass=abc.ABCMeta):
    @abc.abstractmethod
-   def onRequirePortData(self, node, portId, portName, data):
+   def on_require_port_data(self, port, value):
       """
       called by apx.NodeData when a require port has updated its data
       """
@@ -35,11 +35,11 @@ class NodeData():
 
       compiler = apx.compiler.Compiler()
       self.name=self.node.name
-      self.inPortByteMap = []
-      self.inPortDataMap = []
-      self.outPortDataMap = []
-      self.inPortPrograms = []
-      self.outPortPrograms = []
+      self.inPortByteMap = [] #length: length of self.inPortDataFile
+      self.inPortDataMap = [] #length: number of require ports
+      self.outPortDataMap = [] #length: number of provide ports
+      self.inPortPrograms = [] #length: number of require ports
+      self.outPortPrograms = [] #length: number of provide ports
       self.inPortDataFile = self._createInPortDataFile(self.node, compiler) if len(self.node.requirePorts)>0 else None
       self.outPortDataFile = self._createOutPortDataFile(self.node, compiler) if len(self.node.providePorts)>0 else None
       self.definitionFile = self._createDefinitionFile(node.name,apx_text)
@@ -48,8 +48,7 @@ class NodeData():
       if self.inPortDataFile is not None:
          self.inPortDataFile.nodeDataHandler=self
       self.nodeDataClient=None
-
-
+   
    def _createInPortDataFile(self, node, compiler):
       offset=0
       init_data = bytearray()
@@ -97,25 +96,35 @@ class NodeData():
       file.write(0,bytes(apx_text, encoding='ascii'))
       return file
 
-   def inPortDataWriteNotify(self, file, offset: int, data : bytes):
+   def inPortDataWriteNotify(self, file, write_offset: int, write_len : int):
       """
       Called by FileManager when it receives a remote write in the node's inPortData file
       """
       if self.nodeDataClient is not None:
-         startOffset=offset
-         endOffset=offset+len(data)
-         while offset<endOffset:
-            found=False
-            for portId,elem in enumerate(self.inPortDataMap):
-               if elem.startOffset <= offset < elem.endOffset:
-                  offset=elem.endOffset
-                  found=True
-                  value = self._unpackRequirePort(elem.port, data[elem.startOffset-startOffset:elem.endOffset-startOffset])
-                  self.nodeDataClient.onRequirePortData(self, portId, elem.port.name, value)
-                  break
-            if found == False:
-               break
+         for (port, data_offset, data_len) in self.byte_to_port(write_offset, write_len):
+            value = self._unpackRequirePort(port.id, data_offset, data_len)
+            self.nodeDataClient.on_require_port_data(port, value)
 
+   def byte_to_port(self, start_offset, data_len):
+      """
+      Returns an iterator which yields a sequence of ports triggered by the data update
+      """
+      data_offset = start_offset
+      end_offset = start_offset+data_len      
+      file_len = len(self.inPortByteMap)
+      if start_offset > file_len:
+         raise ValueError('start_offset ({:d}) is beyond length of file ({:d})'.format(start_offset, file_len))
+      if end_offset > file_len:
+         raise ValueError('end_offset ({:d}) is beyond length of file ({:d})'.format(end_offset, file_len))
+      while data_offset < end_offset:
+         port = self.inPortByteMap[data_offset]
+         mapping = self.inPortDataMap[port.id]
+         assert(mapping.port is port)
+         next_offset = mapping.data_offset+mapping.data_len
+         yield port,mapping.data_offset,mapping.data_len
+         data_offset=next_offset
+      
+   
    def writeProvidePort(self, portId, value):
       port = self.node.providePorts[portId]
       dataMap = self.outPortDataMap[portId]
@@ -134,6 +143,8 @@ class NodeData():
    def _unpackRequirePort(self, port_id, data_offset, data_len):
       program = self.inPortPrograms[port_id]
       data=self.inPortDataFile.read(data_offset, data_len)
+      if data is None:
+         raise RuntimeError('Failed to read data at offset={:d}, len={:d}'.format(data_offset, data_len))      
       self.lock.acquire()
       self.vm.exec_unpack_prog(program, data, 0)
       value = self.vm.value

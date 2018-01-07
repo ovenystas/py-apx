@@ -5,7 +5,7 @@ import sys
 
 class NodeDataHandler(metaclass=abc.ABCMeta):
    @abc.abstractmethod
-   def inPortDataWriteNotify(self, file, offset : int, data : bytes):
+   def inPortDataWriteNotify(self, file, write_offset : int, write_len : int):
       """
       Notification called when inPortDataFile has been written to (from ApxFileManager)
       """
@@ -68,12 +68,10 @@ class InputFile(File):
       self.nodeDataHandler=None
    
    def write(self, offset: int, data: bytes, more_bit : bool = False):
-      retval = super().write(offset, data)
+      retval = super().write(offset, data)      
       if (retval>=0) and (more_bit == False):
          if self.nodeDataHandler is not None:
-            self.nodeDataHandler.inPortDataWriteNotify(self, offset, data)
-         else:
-            print("write to InputFile %s, off=%d, len=%d"%(file.name, offset, len(bytes)))
+            self.nodeDataHandler.inPortDataWriteNotify(self, offset, len(data))
       return retval
          
 

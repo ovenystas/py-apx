@@ -66,9 +66,9 @@ class Client:
    def set_listener(self, dataListener):
       self.dataListener=dataListener
 
-   def onRequirePortData(self, node, portId, portName, data):
+   def on_require_port_data(self, port, value):
       if self.dataListener:
-         self.dataListener.on_data(portId,portName, data)
+         self.dataListener.on_data(port, value)
    
    def write_port(self, identifier, value):
       if isinstance(identifier, str):
