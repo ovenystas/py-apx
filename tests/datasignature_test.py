@@ -356,59 +356,59 @@ class TestDataSignatureInitValues(unittest.TestCase):
 class test_elem_size(unittest.TestCase):
     def test_U8(self):
         dsg = apx.DataSignature('C')
-        self.assertEqual(dsg.packLen(None), 1)
+        self.assertEqual(dsg.packLen(), 1)
 
     def test_U16(self):
         dsg = apx.DataSignature('S')
-        self.assertEqual(dsg.packLen(None), 2)
+        self.assertEqual(dsg.packLen(), 2)
 
     def test_U32(self):
         dsg = apx.DataSignature('L')
-        self.assertEqual(dsg.packLen(None), 4)
+        self.assertEqual(dsg.packLen(), 4)
 
     def test_U8AR(self):
         dsg = apx.DataSignature('C[8]')
-        self.assertEqual(dsg.packLen(None), 1*8)
+        self.assertEqual(dsg.packLen(), 1*8)
 
     def test_U16AR(self):
         dsg = apx.DataSignature('S[16]')
-        self.assertEqual(dsg.packLen(None), 2*16)
+        self.assertEqual(dsg.packLen(), 2*16)
 
     def test_U32AR(self):
         dsg = apx.DataSignature('L[32]')
-        self.assertEqual(dsg.packLen(None), 4*32)
+        self.assertEqual(dsg.packLen(), 4*32)
 
     def test_S8(self):
         dsg = apx.DataSignature('c')
-        self.assertEqual(dsg.packLen(None), 1)
+        self.assertEqual(dsg.packLen(), 1)
 
     def test_S16(self):
         dsg = apx.DataSignature('s')
-        self.assertEqual(dsg.packLen(None), 2)
+        self.assertEqual(dsg.packLen(), 2)
 
     def test_S32(self):
         dsg = apx.DataSignature('l')
-        self.assertEqual(dsg.packLen(None), 4)
+        self.assertEqual(dsg.packLen(), 4)
 
     def test_S8AR(self):
         dsg = apx.DataSignature('c[8]')
-        self.assertEqual(dsg.packLen(None), 1*8)
+        self.assertEqual(dsg.packLen(), 1*8)
 
     def test_S16AR(self):
         dsg = apx.DataSignature('s[16]')
-        self.assertEqual(dsg.packLen(None), 2*16)
+        self.assertEqual(dsg.packLen(), 2*16)
 
     def test_U32AR(self):
         dsg = apx.DataSignature('l[32]')
-        self.assertEqual(dsg.packLen(None), 4*32)
+        self.assertEqual(dsg.packLen(), 4*32)
     
     def test_String(self):
         dsg = apx.DataSignature('a[21]')
-        self.assertEqual(dsg.packLen(None), 21)
+        self.assertEqual(dsg.packLen(), 21)
 
     def test_record(self):
         dsg = apx.DataSignature('{"TrackTitle"a[40]"TrackLength"L}')
-        self.assertEqual(dsg.packLen(None), 44)
+        self.assertEqual(dsg.packLen(), 44)
     
     def test_reference(self):
         typeList = []
@@ -417,13 +417,13 @@ class test_elem_size(unittest.TestCase):
         typeList.append(apx.DataType("TestType3", 'C'))
         typeList.append(apx.DataType("TestType3", '{"Name"a[16]"ID"L}'))        
         dsg = apx.DataSignature('T[3]', typeList)
-        self.assertEqual(dsg.packLen(typeList), 20)
+        self.assertEqual(dsg.packLen(), 20)
         dsg = apx.DataSignature('T[2]', typeList)
-        self.assertEqual(dsg.packLen(typeList), 1)
+        self.assertEqual(dsg.packLen(), 1)
         dsg = apx.DataSignature('T[1]', typeList)
-        self.assertEqual(dsg.packLen(typeList), 18)
+        self.assertEqual(dsg.packLen(), 18)
         dsg = apx.DataSignature('T[0]', typeList)
-        self.assertEqual(dsg.packLen(typeList), 8)
+        self.assertEqual(dsg.packLen(), 8)
       
             
 if __name__ == '__main__':

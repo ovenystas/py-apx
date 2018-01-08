@@ -41,8 +41,14 @@ P"VehicleSpeed"T[5]:=0xFFFF
       self.assertIs(node.providePorts[1].dsg.dataElement.typeReference, node.dataTypes[5])
       
 
-      
-      
+class TestParserErrors(unittest.TestCase):
+   
+   def test_missing_end_brace(self):      
+      node = apx.Node("TestSWC")
+      with self.assertRaises(apx.ParseError) as context:
+         port = apx.RequirePort('TestPort1', '{"name"a[6]"Rectangle"{"x"L"y"L"width"L"height"L}','={"",{0,0,0,0}}')
+      self.assertEqual(str(context.exception), "Missing '}' in data signature")
+   
 
 if __name__ == '__main__':
     unittest.main()

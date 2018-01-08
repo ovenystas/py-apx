@@ -56,6 +56,36 @@ class TestPortAttribute(unittest.TestCase):
       self.assertEqual(attr.initValue.elements[2].value, "")
       self.assertEqual(attr.initValue.elements[3].valueType, apx.VTYPE_SCALAR)
       self.assertEqual(attr.initValue.elements[3].value, "c")
+   
+   def test_record_init_value(self):
+      attr = apx.base.PortAttribute('={1,2,3}')
+      self.assertEqual(attr.isQueued, False)
+      self.assertEqual(attr.isParameter, False)
+      self.assertEqual(attr.initValue.valueType, apx.VTYPE_LIST)
+      self.assertEqual(len(attr.initValue.elements), 3)
+      self.assertEqual(attr.initValue.elements[0].valueType, apx.VTYPE_SCALAR)
+      self.assertEqual(attr.initValue.elements[0].value, 1)
+      self.assertEqual(attr.initValue.elements[1].valueType, apx.VTYPE_SCALAR)
+      self.assertEqual(attr.initValue.elements[1].value, 2)
+      self.assertEqual(attr.initValue.elements[2].valueType, apx.VTYPE_SCALAR)
+      self.assertEqual(attr.initValue.elements[2].value, 3)
+      
+      attr = apx.base.PortAttribute('={{255,255,255},15}')
+      self.assertEqual(attr.isQueued, False)
+      self.assertEqual(attr.isParameter, False)
+      self.assertEqual(attr.initValue.valueType, apx.VTYPE_LIST)
+      self.assertEqual(len(attr.initValue.elements), 2)
+      self.assertEqual(attr.initValue.elements[0].valueType, apx.VTYPE_LIST)
+      self.assertEqual(len(attr.initValue.elements[0].elements), 3)
+      self.assertEqual(attr.initValue.elements[0].elements[0].valueType, apx.VTYPE_SCALAR)
+      self.assertEqual(attr.initValue.elements[0].elements[0].value, 255)
+      self.assertEqual(attr.initValue.elements[0].elements[1].valueType, apx.VTYPE_SCALAR)
+      self.assertEqual(attr.initValue.elements[0].elements[1].value, 255)
+      self.assertEqual(attr.initValue.elements[0].elements[2].valueType, apx.VTYPE_SCALAR)
+      self.assertEqual(attr.initValue.elements[0].elements[2].value, 255)
+      self.assertEqual(attr.initValue.elements[1].valueType, apx.VTYPE_SCALAR)
+      self.assertEqual(attr.initValue.elements[1].value, 15)
+      
 
 if __name__ == '__main__':
     unittest.main()

@@ -93,6 +93,13 @@ class Port:
       else:
          return data_element
 
+   @property
+   def init_value(self):
+      if self.attr is None:
+         return None
+      else:
+         return self.attr.initValue
+   
 class RequirePort(Port):
    """
    APX require port
@@ -236,7 +243,7 @@ class DataSignature:
                assert(isinstance(childElement, DataElement))
                childElement.name = name               
                recordElement.elements.append(childElement)
-      return (None,remain)
+      raise ParseError("Missing '}' in data signature")
 
    @staticmethod
    def _parseExtendedTypeCode(text):
@@ -480,7 +487,12 @@ class DataElement:
    def _createInitDataInner(dataElement, initValue, is_array_elem=False):
       data = bytearray()
       if (dataElement.typeCode == RECORD_TYPE_CODE):
-         raise NotImplementedError('RECORD_TYPE_CODE')
+         if (initValue.valueType != VTYPE_LIST):
+            raise ValueError('invalid init value type: list expected')
+         if len(initValue.elements) != len(dataElement.elements):
+            raise ValueError('Incorrect number of record elements in init_value: got %d, expected %s'%(len(initValue.elements), len(self.dataElement.elements)))
+         for i,childElement in enumerate(dataElement.elements):
+            data.extend(DataElement._createInitDataInner(childElement, initValue.elements[i]))
       elif (dataElement.typeCode == STRING_TYPE_CODE):
             if not initValue.isString:
                raise ValueError('invalid init value type: expected string')
