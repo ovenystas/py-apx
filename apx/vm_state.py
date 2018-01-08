@@ -35,11 +35,15 @@ class VmPackState(VmState):
                 self.key=None
                 self.array_index=None
             else:
-                raise NotImplementedError('nested records')
+                self.stack.append((self.value, self.key, self.array_index))
+                self.value = self.value[self.key]
+                self.key=None
+                self.array_index=None
+
 
     def record_select(self, name):
         if not isinstance(self.value, dict):
-            raise RuntimeError('record_select performed before record_enter')
+            raise RuntimeError('Expected dict, got {}'.format(type(self.value)))
         self.key = name
 
     def record_leave(self):

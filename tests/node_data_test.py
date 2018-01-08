@@ -9,9 +9,8 @@ def create_node_and_data():
    node.add_type(apx.DataType('InactiveActive_T','C(0,3)'))
    node.append(apx.ProvidePort('VehicleSpeed','S','=65535'))
    node.append(apx.ProvidePort('MainBeam','T[0]','=3'))
-   node.append(apx.ProvidePort('FuelLevel','C'))
-   node.append(apx.ProvidePort('ParkBrakeActive','T[0]','=3'))
-   node.append(apx.ProvidePort('ComplexRecordSignal','{"SensorData"{"x"S"y"S"z"S}"TimeStamp"L}'))
+   node.append(apx.ProvidePort('TotalDistance','L', '=0xFFFFFFFF'))
+   node.append(apx.ProvidePort('ComplexRecordSignal','{"SensorData"{"x"S"y"S"z"S}"TimeStamp"L}', '={{65535,65535,65535},0xFFFFFFFF}'))
    node.append(apx.RequirePort('RheostatLevelRqst','C','=255'))
    node.append(apx.RequirePort('StrSignal','a[8]','=""'))
    node.append(apx.RequirePort('RecordSignal','{"Name"a[8]"Id"L"Data"S[3]}','={"",0xFFFFFFFF,{0,0,0}}'))
@@ -36,7 +35,7 @@ class TestNodeDataCompile(unittest.TestCase):
          self.assertEqual(node_data.inPortByteMap[i].name, 'RecordSignal')
          self.assertEqual(node_data.inPortByteMap[i].id, 2)
       
-      self.assertEqual(len(node_data.outPortDataMap), 5)
+      self.assertEqual(len(node_data.outPortDataMap), 4)
       elem = node_data.outPortDataMap[0]
       self.assertEqual(elem.data_offset, 0)
       self.assertEqual(elem.data_len, 2)
@@ -47,14 +46,10 @@ class TestNodeDataCompile(unittest.TestCase):
       self.assertIs(elem.port, node.find('MainBeam'))
       elem = node_data.outPortDataMap[2]
       self.assertEqual(elem.data_offset, 3)
-      self.assertEqual(elem.data_len, 1)
-      self.assertIs(elem.port, node.find('FuelLevel'))
+      self.assertEqual(elem.data_len, 4)
+      self.assertIs(elem.port, node.find('TotalDistance'))
       elem = node_data.outPortDataMap[3]
-      self.assertEqual(elem.data_offset, 4)
-      self.assertEqual(elem.data_len, 1)
-      self.assertIs(elem.port, node.find('ParkBrakeActive'))
-      elem = node_data.outPortDataMap[4]
-      self.assertEqual(elem.data_offset, 5)
+      self.assertEqual(elem.data_offset, 7)
       self.assertEqual(elem.data_len, 10)
       self.assertIs(elem.port, node.find('ComplexRecordSignal'))
 
@@ -62,10 +57,11 @@ class TestNodeDataCompile(unittest.TestCase):
                         apx.OPCODE_PACK_U16])
       self.assertEqual(node_data.outPortPrograms[0], expected)
       expected = bytes([apx.OPCODE_PACK_PROG, apx.UINT8_LEN,0,0,0,
-                        apx.OPCODE_PACK_U8])
+                        apx.OPCODE_PACK_U8])      
       self.assertEqual(node_data.outPortPrograms[1], expected)
-      self.assertEqual(node_data.outPortPrograms[2], expected)
-      self.assertEqual(node_data.outPortPrograms[3], expected)
+      expected = bytes([apx.OPCODE_PACK_PROG, apx.UINT32_LEN,0,0,0,
+                        apx.OPCODE_PACK_U32])      
+      self.assertEqual(node_data.outPortPrograms[2], expected)      
       expected = bytes([apx.OPCODE_PACK_PROG, (3*apx.UINT16_LEN+apx.UINT32_LEN),0,0,0,
                         apx.OPCODE_RECORD_ENTER,
                         apx.OPCODE_RECORD_SELECT])+"SensorData\0".encode('ascii')+bytes([
@@ -81,7 +77,7 @@ class TestNodeDataCompile(unittest.TestCase):
                         apx.OPCODE_PACK_U32,
                         apx.OPCODE_RECORD_LEAVE                        
                         ])
-      self.assertEqual(node_data.outPortPrograms[4], expected)      
+      self.assertEqual(node_data.outPortPrograms[3], expected)      
       
       expected = bytes([apx.OPCODE_UNPACK_PROG, apx.UINT8_LEN,0,0,0,
                         apx.OPCODE_UNPACK_U8])
@@ -302,7 +298,46 @@ class TestNodeDataWrite(unittest.TestCase):
       node_data.write_provide_port(VehicleSpeed_port, 0x1234)      
       self.assertEqual(output_file.read(VehicleSpeed_offset, VehicleSpeed_length), bytes([0x34, 0x12]))
       
+   def test_write_MainBeam(self):
+      node = create_node_and_data()
+      node_data = apx.NodeData(node)
+      MainBeam_port = node.find('MainBeam')
+      MainBeam_offset = 2
+      MainBeam_length = 1
+      output_file = node_data.outPortDataFile
+      #verify init value
+      self.assertEqual(output_file.read(MainBeam_offset, MainBeam_length), bytes([3]))
+      node_data.write_provide_port(MainBeam_port, 0)
+      self.assertEqual(output_file.read(MainBeam_offset, MainBeam_length), bytes([0]))
+      node_data.write_provide_port(MainBeam_port, 3)
+      self.assertEqual(output_file.read(MainBeam_offset, MainBeam_length), bytes([3]))
+      
+   def test_write_TotalDistance(self):
+      node = create_node_and_data()
+      node_data = apx.NodeData(node)
+      TotalDistance_port = node.find('TotalDistance')
+      TotalDistance_offset = 3
+      TotalDistance_length = 4
+      output_file = node_data.outPortDataFile
+      #verify init value
+      self.assertEqual(output_file.read(TotalDistance_offset, TotalDistance_length), bytes([0xFF,0xFF,0xFF,0xFF]))
+      node_data.write_provide_port(TotalDistance_port, 0)
+      self.assertEqual(output_file.read(TotalDistance_offset, TotalDistance_length), bytes([0,0,0,0]))
+      node_data.write_provide_port(TotalDistance_port, 0x12345678)
+      self.assertEqual(output_file.read(TotalDistance_offset, TotalDistance_length), bytes([0x78,0x56,0x34,0x12]))
 
+   def test_write_TotaComplexRecordSignal(self):
+      node = create_node_and_data()
+      node_data = apx.NodeData(node)
+      ComplexRecordSignal_port = node.find('ComplexRecordSignal')
+      ComplexRecordSignal_offset = 7
+      ComplexRecordSignal_length = 10
+      output_file = node_data.outPortDataFile
+      #verify init value
+      self.assertEqual(output_file.read(ComplexRecordSignal_offset, ComplexRecordSignal_length), struct.pack("<HHHL", 0xFFFF,  0xFFFF,  0xFFFF, 0xFFFFFFFF))
+      #write some values
+      node_data.write_provide_port(ComplexRecordSignal_port, {"SensorData": dict(x = 1, y =2, z= 3), 'TimeStamp':0})
+      self.assertEqual(output_file.read(ComplexRecordSignal_offset, ComplexRecordSignal_length), struct.pack("<HHHL", 1,  2,  3, 0))
       
 if __name__ == '__main__':
     unittest.main()
