@@ -326,7 +326,7 @@ class TestNodeDataWrite(unittest.TestCase):
       node_data.write_provide_port(TotalDistance_port, 0x12345678)
       self.assertEqual(output_file.read(TotalDistance_offset, TotalDistance_length), bytes([0x78,0x56,0x34,0x12]))
 
-   def test_write_TotaComplexRecordSignal(self):
+   def test_write_ComplexRecordSignal(self):
       node = create_node_and_data()
       node_data = apx.NodeData(node)
       ComplexRecordSignal_port = node.find('ComplexRecordSignal')
@@ -338,6 +338,80 @@ class TestNodeDataWrite(unittest.TestCase):
       #write some values
       node_data.write_provide_port(ComplexRecordSignal_port, {"SensorData": dict(x = 1, y =2, z= 3), 'TimeStamp':0})
       self.assertEqual(output_file.read(ComplexRecordSignal_offset, ComplexRecordSignal_length), struct.pack("<HHHL", 1,  2,  3, 0))
+   
+   def test_write_string(self):
+      node = apx.Node('TestNode')
+      port = node.append(apx.ProvidePort('StrSignal', 'a[6]', '=""'))
+      node_data = apx.NodeData(node)
+      signal_offset=0
+      signal_length=6
+      output_file = node_data.outPortDataFile
+      #verify init value
+      self.assertEqual(output_file.read(signal_offset, signal_length), bytes(6))
+      #write value
+      node_data.write_provide_port(port, "Hello")
+      self.assertEqual(output_file.read(signal_offset, signal_length), "Hello\0".encode('utf-8'))
+      node_data.write_provide_port(port, "Abc")
+      self.assertEqual(output_file.read(signal_offset, signal_length), "Abc\0\0\0".encode('utf-8'))
+      node_data.write_provide_port(port, "")
+      self.assertEqual(output_file.read(signal_offset, signal_length), bytes(6))
+
+   def test_write_s8(self):
+      node = apx.Node('TestNode')
+      port = node.append(apx.ProvidePort('S8Signal', 'c', '=0'))
+      node_data = apx.NodeData(node)
+      signal_offset=0
+      signal_length=1
+      output_file = node_data.outPortDataFile
+      #verify init value
+      self.assertEqual(output_file.read(signal_offset, signal_length), bytes(signal_length))
+      #write value
+      node_data.write_provide_port(port, -1)
+      self.assertEqual(output_file.read(signal_offset, signal_length), struct.pack('<b', -1))
+      node_data.write_provide_port(port, -128)
+      self.assertEqual(output_file.read(signal_offset, signal_length), struct.pack('<b', -128))
+      node_data.write_provide_port(port, 127)
+      self.assertEqual(output_file.read(signal_offset, signal_length), struct.pack('<b', 127))
+      node_data.write_provide_port(port, 0)
+      self.assertEqual(output_file.read(signal_offset, signal_length), struct.pack('<b', 0))
+      
+   def test_write_s16(self):
+      node = apx.Node('TestNode')
+      port = node.append(apx.ProvidePort('S16Signal', 's', '=0'))
+      node_data = apx.NodeData(node)
+      signal_offset=0
+      signal_length=2
+      output_file = node_data.outPortDataFile
+      #verify init value
+      self.assertEqual(output_file.read(signal_offset, signal_length), bytes(signal_length))
+      #write value
+      node_data.write_provide_port(port, -1)
+      self.assertEqual(output_file.read(signal_offset, signal_length), struct.pack('<h', -1))
+      node_data.write_provide_port(port, -32768)
+      self.assertEqual(output_file.read(signal_offset, signal_length), struct.pack('<h', -32768))
+      node_data.write_provide_port(port, 32767)
+      self.assertEqual(output_file.read(signal_offset, signal_length), struct.pack('<h',32767))
+      node_data.write_provide_port(port, 0)
+      self.assertEqual(output_file.read(signal_offset, signal_length), struct.pack('<H', 0))
+
+   def test_write_s32(self):
+      node = apx.Node('TestNode')
+      port = node.append(apx.ProvidePort('S32Signal', 'l', '=0'))
+      node_data = apx.NodeData(node)
+      signal_offset=0
+      signal_length=4
+      output_file = node_data.outPortDataFile
+      #verify init value
+      self.assertEqual(output_file.read(signal_offset, signal_length), bytes(signal_length))
+      #write value
+      node_data.write_provide_port(port, -1)
+      self.assertEqual(output_file.read(signal_offset, signal_length), struct.pack('<i', -1))
+      node_data.write_provide_port(port, -2147483648)
+      self.assertEqual(output_file.read(signal_offset, signal_length), struct.pack('<i', -2147483648))
+      node_data.write_provide_port(port, 2147483647)
+      self.assertEqual(output_file.read(signal_offset, signal_length), struct.pack('<i',2147483647))
+      node_data.write_provide_port(port, 0)
+      self.assertEqual(output_file.read(signal_offset, signal_length), struct.pack('<i', 0))         
       
 if __name__ == '__main__':
     unittest.main()
