@@ -95,6 +95,9 @@ class Client:
                 if port is None:
                     raise ValueError('Port {0.name} is not a require port of node {1.name}'.format(self.port, self.node))
             return self.nodeData.read_require_port(port.id)
+    
+    def read_port(self, identifier):
+        return self.read(identifier)
 
     def write(self, identifier, value):
         if self.node is not None and self.nodeData is not None:
@@ -115,3 +118,6 @@ class Client:
                 if port is None:
                     raise ValueError('Port {0.name} is not a provide port of node {1.name}'.format(self.port, self.node))
             self.nodeData.write_provide_port(port.id, value)
+    
+    def write_port(self, identifier, value):
+        self.write(identifier, value)
