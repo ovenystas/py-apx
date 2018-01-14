@@ -1,5 +1,5 @@
 #! /bin/python3
-#Copyright (c) 2015-2017, Conny Gustafsson
+#Copyright (c) 2015-2018, Conny Gustafsson
 
 import math
 import re
@@ -14,12 +14,22 @@ REQUIRE_SECTION=4
 
 _p0=re.compile(r'([\+\-A-Z]+)')
 _p1=re.compile(r'([^:]*)')
+_p2=re.compile(r'#(.*)')
+
+
+def strip_comment(apx_text):    
+    return re.sub(_p2, '', apx_text)
+
 
 def apx_split_line(s):
-   r0=_p0.match(s)
+   #remove comment section at end of line
+   processed = strip_comment(s).rstrip(' \r\n')   
+   if len(processed)==0:
+      return None
+   r0=_p0.match(processed)   
    if r0 is not None:
       lineType=r0.group(1)
-      remain=s[len(lineType):]
+      remain=processed[len(lineType):]
       (name,remain) = apx.parse_str(remain)
       if len(remain)>0:
          r1 = _p1.match(remain)
@@ -33,7 +43,7 @@ def apx_split_line(s):
          return (lineType,name,dsg,None)
       else:
          return (lineType,name)
-   return None,s
+   return None,processed
 
 
 class Parser:
@@ -47,8 +57,10 @@ class Parser:
       return None   
    
    def _processLine(self, line):
-      parts = apx_split_line(line)         
-      if parts != None and len(parts)>0:            
+      parts = apx_split_line(line)
+      if parts is None:
+         return
+      if len(parts)>0:
          if self.cs == START_SECTION:            
             if parts[0]=='N': #Node Line
                self.cs=NODE_SECTION
@@ -196,9 +208,9 @@ class Parser:
    
    def _applyPort(self,apxPort):
       if isinstance(apxPort,apx.ProvidePort):
-         self.node.providePorts.append(apxPort)
+         self.node.append(apxPort)
       elif isinstance(apxPort,apx.RequirePort):
-         self.node.requirePorts.append(apxPort)
+         self.node.append(apxPort)
       else:
          raise ValueError
    
