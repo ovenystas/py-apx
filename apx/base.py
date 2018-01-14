@@ -80,7 +80,7 @@ class Port:
          return '%s"%s"%s'%(self.portType, self.name, str(self.dsg))
    
    def resolve_type(self, typeList):
-      self.dsg.resolve_data_element(typeList)
+      return self.dsg.resolve_data_element(typeList)
    
    @property
    def data_element(self):
@@ -210,7 +210,9 @@ class DataSignature:
       Returns the C type name of the data signature as a string. This return value can be used for code generation in C/C++ code.
       """
       if self.dataElement.isReference:
-         return self.dataElement.resolveType().name
+         data_type = self.dataElement.typeReference
+         assert(isinstance(data_type, DataType))
+         return data_type.name
       else:
          return _derive_c_typename(self.data)
    
@@ -463,7 +465,7 @@ class DataElement:
                dataType = dataElement.typeReference
                dataElement = dataType.dsg.dataElement
             else:
-               raise ApxTypeError('Unresolved data type: {}'.format(str(dataElement.typeReference)))
+               raise ApxTypeError('Unresolved data type: {}'.format(type(dataElement.typeReference)))
          else:
             break
       if (count >= MAX_RECURSE_DEPTH) and dataElement.typeCode == REFERENCE_TYPE_CODE:

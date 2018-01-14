@@ -159,13 +159,14 @@ class NodeGenerator:
          is_pointer=False
          func = C.function("ApxNode_Read_%s_%s"%(name,port.name),"Std_ReturnType")
          is_pointer=True
-         func.add_arg(C.variable('val',port.dsg.ctypename(node.dataTypes),pointer=is_pointer))
-         packLen=port.dsg.packLen(node.dataTypes)
+         type_name = port.dsg.ctypename(node.dataTypes)
+         func.add_arg(C.variable('val',type_name,pointer=is_pointer))
+         packLen=port.dsg.packLen()
          port.dsg.typeList=node.dataTypes
          initValue=None
          if port.attr is not None:
             initValue = port.attr.initValue
-         info = SignalInfo(port.name,offset,packLen,func,port.dsg.resolveType(),'unpack', initValue)
+         info = SignalInfo(port.name,offset,packLen,func,port.resolve_type(node.dataTypes),'unpack', initValue)
          if self.has_callbacks:
             if port.name in callbacks:
                self.callbacks.create(info, callbacks[port.name])
@@ -183,12 +184,12 @@ class NodeGenerator:
          if port.dsg.isComplexType(node.dataTypes) and not port.dsg.isArray(node.dataTypes):
             is_pointer=True
          func.add_arg(C.variable('val',port.dsg.ctypename(node.dataTypes),pointer=is_pointer))
-         packLen=port.dsg.packLen(node.dataTypes)
+         packLen=port.dsg.packLen()
          port.dsg.typeList= node.dataTypes
          initValue=None
          if port.attr is not None:
             initValue = port.attr.initValue
-         tmp = SignalInfo(port.name,offset,packLen,func,port.dsg.resolveType(),'pack',initValue)
+         tmp = SignalInfo(port.name,offset,packLen,func,port.resolve_type(node.dataTypes),'pack',initValue)
          signalInfoList.append(tmp)
          signalInfoMap['provide'][port.name]=tmp
          outPortDataLen+=packLen
@@ -209,20 +210,20 @@ class NodeGenerator:
       with open(source_filename, "w") as fp:
          self._writeSourceFile(fp,signalInfoMap,initFunc,nodeDataFunc, node, inPortDataLen, outPortDataLen, callback_file)
 
-   def genPackUnpackInteger(self, code, buf, operation, valname, dsg, localvar, offset, indent):
+   def genPackUnpackInteger(self, code, buf, operation, valname, dataElement, localvar, offset, indent):
       dataLen=0
-      resolvedDsg = dsg.resolveType()
-      if resolvedDsg.data['type']=='c' or resolvedDsg.data['type']=='C':
+      resolvedElement = dataElement.resolve_data_element(None)
+      if resolvedElement.typeCode==apx.SINT8_TYPE_CODE or resolvedElement.typeCode==apx.UINT8_TYPE_CODE:
          dataLen=1
-         basetype='sint8' if resolvedDsg.data['type']=='c' else 'uint8'
-      elif resolvedDsg.data['type']=='s' or resolvedDsg.data['type']=='S':
+         basetype='sint8' if resolvedElement.typeCode==apx.SINT8_TYPE_CODE else 'uint8'
+      elif resolvedElement.typeCode==apx.SINT16_TYPE_CODE or resolvedElement.typeCode==apx.UINT16_TYPE_CODE:
          dataLen=2
-         basetype='sint16' if resolvedDsg.data['type']=='s' else 'uint16'
-      elif resolvedDsg.data['type']=='l' or resolvedDsg.data['type']=='L':
+         basetype='sint16' if resolvedElement.typeCode==apx.SINT16_TYPE_CODE else 'uint16'
+      elif resolvedElement.typeCode==apx.SINT32_TYPE_CODE or resolvedElement.typeCode==apx.UINT32_TYPE_CODE:
          dataLen=4
-         basetype='sint32' if resolvedDsg.data['type']=='l' else 'uint32'
+         basetype='sint32' if resolvedElement.typeCode==apx.SINT32_TYPE_CODE else 'uint32'
       else:
-         raise NotImplementedError(resolvedDsg.data['type'])
+         raise NotImplementedError(resolvedElement.typeCode)
       if 'bufptr' in localvar:
          #relative addressing
          if operation == 'pack':

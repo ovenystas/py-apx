@@ -347,7 +347,7 @@ class AutosarProvidePort(AutosarPort):
       other.attr = self.attr
       return other
 
-class AutosarDataType:
+class AutosarDataType(apx.DataType):
    def __init__(self, ws, dataType, parent = None):
       self.name=dataType.name
       self.dsg=apx.DataSignature(self._calcDataSignature(ws,dataType), parent)
