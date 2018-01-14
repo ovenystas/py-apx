@@ -36,7 +36,7 @@ class TcpSocketAdapter:
                      break
                   elif result > 0:
                      unprocessed=unprocessed[result:]
-            except ConnectionAbortedError:               
+            except (ConnectionAbortedError, OSError):
                break
          print("socket worker shutting down")
                   

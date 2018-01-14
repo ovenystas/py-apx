@@ -20,10 +20,11 @@ class TestFileManager(unittest.TestCase):
  
    def test_workerStartStop(self):
       #test explicit shutdown using stop method
-      mgr = apx.FileManager()
-      mgr.start()      
-      mgr.stop()
-      self.assertEqual(mgr.worker, None)
+      with apx.FileManager() as mgr:
+         mgr.start()
+         mgr.stop()
+         self.assertEqual(mgr.worker_active, False)
+      
    
    def test_fileManagerWithNode(self):      
       node = apx.Node('Simulator')
@@ -35,16 +36,15 @@ class TestFileManager(unittest.TestCase):
       node.append(apx.ProvidePort('ParkBrakeActive','T[0]','=3'))
       node.append(apx.RequirePort('RheostatLevelRqst','C','=255'))
       nodeData = apx.NodeData(node)
-      fileManager = apx.FileManager()
-      fileManager.attachNodeData(nodeData)
-      self.assertEqual(len(fileManager.localFileMap), 2)
-      self.assertEqual(len(fileManager.requestedFiles), 1)
-      fileManager.start()
-      mockHandler = MockTransmitHandler()
-      fileManager.onConnected(mockHandler)
-      time.sleep(0.1)      
-      self.assertEqual(len(mockHandler.transmittedData), 4+63*2)
-      fileManager.stop()
+      with apx.FileManager() as file_manager:
+         file_manager.attachNodeData(nodeData)
+         self.assertEqual(len(file_manager.localFileMap), 2)
+         self.assertEqual(len(file_manager.requestedFiles), 1)
+         file_manager.start()
+         mockHandler = MockTransmitHandler()
+         file_manager.onConnected(mockHandler)
+         time.sleep(0.1)
+         self.assertEqual(len(mockHandler.transmittedData), 4+63*2)         
       
 
 

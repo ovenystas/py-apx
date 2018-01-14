@@ -37,8 +37,6 @@ class Client:
             if definitionDataFile is not None:
                 self.fileManager.attachLocalFile(definitionDataFile)
             self.nodeData.nodeDataClient=self
-            self.providePortMap={}
-            self.fileManager.start()
 
     def create_node(self, apxText):
         """
@@ -52,10 +50,17 @@ class Client:
     def connect_tcp(self, address, port):
         self.socketAdapter.setReceiveHandler(self.fileManager)
         if self.socketAdapter.connect(address, port):
+            self.fileManager.start()
             self.socketAdapter.start()
             return True
         else:
             return False
+    
+    def connectTcp(self, address, port):
+        """
+        Backwards-compatible version of connect_tcp
+        """
+        return self.connect_tcp(address, port)
     
     def find(self, name):
         """
@@ -64,7 +69,7 @@ class Client:
         if self.node is not None:
             return self.node.find(name)
         return None
-    
+        
     def stop(self):
         self.socketAdapter.stop()
         self.fileManager.stop()
@@ -97,6 +102,9 @@ class Client:
             return self.nodeData.read_require_port(port.id)
     
     def read_port(self, identifier):
+        """
+        Backwards-compatible version of read
+        """        
         return self.read(identifier)
 
     def write(self, identifier, value):
@@ -120,4 +128,13 @@ class Client:
             self.nodeData.write_provide_port(port.id, value)
     
     def write_port(self, identifier, value):
+        """
+        Backwards-compatible version of write
+        """
         self.write(identifier, value)
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.stop()

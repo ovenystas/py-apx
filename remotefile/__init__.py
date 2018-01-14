@@ -217,8 +217,7 @@ class FileManager:
       self.localFileMap = localFileMap
       self.remoteFileMap = remoteFileMap
       self.requestedFiles = {}
-      self.byteOrder='<' #use '<' for little endian, '>' for big endian
-      
+      self.byteOrder='<' #use '<' for little endian, '>' for big endian   
       def worker():
          """
          this is the worker thread.
@@ -227,9 +226,9 @@ class FileManager:
          """
          transmitHandler=None
          while True:            
-            msg = self.msgQueue.get()
-            if msg is None:
-               break
+            msg = self.msgQueue.get()            
+            if msg is None:               
+               break            
             msgType=msg[0]
             if msgType == RMF_MSG_CONNECT:
                transmitHandler=msg[1]
@@ -252,17 +251,27 @@ class FileManager:
                raise NotImplementedError(msgType)
                            
       self.msgQueue = queue.Queue()
+      self.worker_active=False
       self.worker = threading.Thread(target=worker)
+
+   def __enter__(self):
+      return self
    
-   def start(self):      
+   def __exit__(self, exc_type, exc_value, traceback):      
+      self.stop()
+   
+   def start(self):
+      self.worker_active=True
       self.worker.start()
 
    def stop(self):
-      if self.worker is not None and self.worker.is_alive():
+      if self.worker_active:
          #send special message None to stop the worker thread
          self.msgQueue.put(None)
          self.worker.join()
          self.worker=None
+         self.worker_active=False
+      
       
    def _FileInfo_handler(self, msg):
       print("_FileInfo_handler")
