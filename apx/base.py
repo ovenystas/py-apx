@@ -593,7 +593,7 @@ class PortAttribute:
             self.isParameter=True
             remain=remain[1:]
          else:
-            raise ParseError
+            raise ParseError(text)
 
    def __str__(self):
       return self.str
