@@ -42,21 +42,19 @@ def parse_str(s):
 
 
 
-def _derive_c_typename(item):
+def _derive_c_typename(dataElement):
    """
    returns the C typename for simple data types
    """
-   if   item['type']=='c': retval = 'sint8'
-   elif item['type']=='C': retval = 'uint8'
-   elif item['type']=='s': retval = 'sint16'
-   elif item['type']=='S': retval = 'uint16'
-   elif item['type']=='l': retval = 'sint32'
-   elif item['type']=='L': retval = 'uint32'
-   elif item['type']=='a': retval = 'uint8'
+   if   dataElement.typeCode == UINT8_TYPE_CODE: retval = 'uint8'
+   elif dataElement.typeCode == UINT16_TYPE_CODE: retval = 'uint16'
+   elif dataElement.typeCode == UINT32_TYPE_CODE: retval = 'uint32'
+   elif dataElement.typeCode == SINT8_TYPE_CODE: retval = 'sint8'
+   elif dataElement.typeCode == SINT16_TYPE_CODE: retval = 'sint16'
+   elif dataElement.typeCode == SINT32_TYPE_CODE: retval = 'sint32'
+   elif dataElement.typeCode == STRING_TYPE_CODE: retval = 'uint8'
    else:
-      raise NotImplementedError(str(item['type']))
-   if item['isArray']:
-      retval+='[%d]'%item['arrayLen']
+      raise NotImplementedError('typeCode={:d}'.format(dataElement.typeCode))
    return retval
 
 
@@ -214,7 +212,7 @@ class DataSignature:
          assert(isinstance(data_type, DataType))
          return data_type.name
       else:
-         return _derive_c_typename(self.data)
+         return _derive_c_typename(self.dataElement)
    
    def isComplexType(self, typeList = None):
       return self.dataElement.isComplexType(typeList)

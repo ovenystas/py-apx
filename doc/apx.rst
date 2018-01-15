@@ -11,6 +11,8 @@ Node
 
    The name of the node.
 
+.. _Node_append:
+
 .. py:method:: Node.append(port)
 
    This is an overloded method that is used for creating new ports in the node object. It returns the port ID (type int) of the newly created port.
@@ -164,13 +166,6 @@ Example::
    node = apx.Node(swc.name)
    node.import_autosar_swc(swc, ws)
 
-.. _Node_add_type:
-
-.. py:method :: Node.add_type(data_type):
-
-   Adds the data type to the node. When this method is called the data_type is assigned the 'id' attribute (which is an integer).
-   This attribute can be used for referencing the type later when creating ports. See DataType_ for a full example.
-
 RequirePort
 -----------
 
@@ -221,8 +216,8 @@ DataType
 
 This creates a new APX data type with the assigned name and data signature.
 
-Use the :ref:`Node.add_type <Node_add_type>` method to add the type to the node. The add_type method will set an id attribute on the datatype that you
-can refer to later with referencing the datatype.
+Use the :ref:`Node.append <Node_append>` method to add the type to the node. The append method will set an id attribute on the datatype that you
+can refer to later by referencing the datatype.
 
 Example::
 
@@ -233,8 +228,8 @@ Example::
        EngineSpeed_T = apx.DataType('EngineSpeed_T', 'S')
        
        node = apx.Node('ExampleNode')
-       node.add_type(VehicleSpeed_T)
-       node.add_type(EngineSpeed_T)
+       node.append(VehicleSpeed_T)
+       node.append(EngineSpeed_T)
        node.append(apx.ProvidePort('VehicleSpeed', 'T[%d]'%VehicleSpeed_T.id, '=65535'))
        node.append(apx.ProvidePort('EngineSpeed', 'T[%d]'%EngineSpeed_T.id, '=65535'))
        apx.Context().append(node).generateAPX()
