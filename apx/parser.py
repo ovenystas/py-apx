@@ -130,7 +130,7 @@ class Parser:
             line = fp.readline() #read next line from file handle
             if len(line)==0:
                break
-            self.ln+=1
+            self.lineNumber+=1
             line=line.rstrip('\r\n')
             self._processLine(line)
       self.node.resolve_types()

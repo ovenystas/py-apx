@@ -190,7 +190,7 @@ class Node:
       elif isinstance(item, apx.ProvidePort):
          return self.add_provide_port(item)
       elif isinstance(item, autosar.component.Port):
-         return self.add_autosar_portitem(item)
+         return self.add_autosar_port(item)
       elif isinstance(item, str):
          parts = apx_split_line(item)
          if len(parts) != 4:
