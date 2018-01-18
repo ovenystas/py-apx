@@ -25,11 +25,25 @@ class TestApxGenerator(unittest.TestCase):
         node = apx.Node("Test")
         node.append(apx.RequirePort('U8Port','C','=255'))
         node.append(apx.RequirePort('U8ARPort','C[3]','={255, 255, 255}'))
+        node.append(apx.ProvidePort('U16ARPort','S[4]','={65535, 65535, 65535, 65535}'))
+        node.append(apx.ProvidePort('U32Port','L','=4294967295'))
         output_dir = 'derived'
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-        apx.NodeGenerator().generate(output_dir, node)
-        #shutil.rmtree(output_dir)
+        output_dir_full = os.path.join(os.path.dirname(__file__),output_dir)
+        if not os.path.exists(output_dir_full):
+            os.makedirs(output_dir_full)
+        time.sleep(0.1)
+        apx.NodeGenerator().generate(output_dir_full, node)
+        with open (os.path.join(os.path.dirname(__file__), output_dir, 'ApxNode_{0.name}.h'.format(node)), "r") as fp:
+            generated=fp.read()
+        with open (os.path.join(os.path.dirname(__file__), 'expected_gen', 'ApxNode_{0.name}.h'.format(node)), "r") as fp:
+            expected=fp.read()
+        self.assertEqual(expected, generated)
+        with open (os.path.join(os.path.dirname(__file__), output_dir, 'ApxNode_{0.name}.c'.format(node)), "r") as fp:
+            generated=fp.read()
+        with open (os.path.join(os.path.dirname(__file__), 'expected_gen', 'ApxNode_{0.name}.c'.format(node)), "r") as fp:
+            expected=fp.read()
+        self.assertEqual(expected, generated)        
+        shutil.rmtree(output_dir_full)
 
 if __name__ == '__main__':
     unittest.main()

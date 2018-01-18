@@ -16,7 +16,7 @@ class Client:
     """
     def __init__(self, node=None):
         self.fileManager=apx.FileManager()
-        self.socketAdapter=remotefile.TcpSocketAdapter()
+        self.socketAdapter=None
         self.attach_node(node)
         self.dataListener=None
 
@@ -48,6 +48,7 @@ class Client:
             self.attach_node(node)
 
     def connect_tcp(self, address, port):
+        self.socketAdapter=remotefile.TcpSocketAdapter()
         self.socketAdapter.setReceiveHandler(self.fileManager)
         if self.socketAdapter.connect(address, port):
             self.fileManager.start()
@@ -71,7 +72,8 @@ class Client:
         return None
         
     def stop(self):
-        self.socketAdapter.stop()
+        if self.socketAdapter is not None:
+            self.socketAdapter.stop()
         self.fileManager.stop()
 
     def set_listener(self, dataListener):

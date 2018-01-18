@@ -246,7 +246,7 @@ class NodeGenerator:
       return dataLen
 
    def genPackUnpackItem(self, code, buf, operation, val, dsg, localvar, offset, indent, indentStep):
-      dataElement = dsg.resolve_data_element()
+      dataElement = dsg.resolve_data_element(None)
       packLen=0
       if isinstance(val,C.variable):
          valname=val.name
@@ -289,29 +289,29 @@ class NodeGenerator:
                assert(elem is not None)
                itemLen=self.genPackUnpackItem(code, buf, operation, childName, apx.DataSignature(elem), localvar, offset, indent, indentStep)
                offset+=itemLen
-               packLen+=itemLen
-         # elif dataElement.isArray():
-         #    if 'loopVar' not in localvar:
-         #       if dataElement.arrayLen<256:
-         #          typename='uint8'
-         #       elif dataElement.arrayLen<65536:
-         #          typename='uint16'
-         #       else:
-         #          typename='uint32'
-         #       localvar['loopVar']=C.variable('i',typename)
-         #    else:
-         #       if localvar['loopVar'].typename=='uint8' and (typename=='uint16' or typename=='uint32'):
-         #          localvar['loopVar'].typename=typename
-         #       elif localvar['loopVar'].typename=='uint16' and typename=='uint32':
-         #          localvar['loopVar'].typename=typename
-         #    if 'bufptr' not in localvar:
-         #       localvar['bufptr']=C.variable('p','uint8',pointer=True)
-         #    code.append(C.statement('for({0}=0;{0}<{1};{0}++)'.format(localvar['loopVar'].name,dataElement.arrayLen),indent=indent))
-         #    block=C.block(indent=indent)
-         #    indent+=indentStep
-         #    itemLen=self.genPackUnpackItem(block, buf, operation, valname+'[%s]'%localvar['loopVar'].name, dataElement, localvar, offset)
-         #    indent-=indentStep
-         #    code.append(block)
+               packLen+=itemLen                  
+         elif dataElement.isArray():
+            if dataElement.arrayLen<256:
+               typename='uint8'
+            elif dataElement.arrayLen<65536:
+               typename='uint16'
+            else:
+               typename='uint32'
+            if 'loopVar' not in localvar:
+               localvar['loopVar']=C.variable('i',typename)
+            else:
+               if localvar['loopVar'].typename=='uint8' and (typename=='uint16' or typename=='uint32'):
+                  localvar['loopVar'].typename=typename
+               elif localvar['loopVar'].typename=='uint16' and typename=='uint32':
+                  localvar['loopVar'].typename=typename
+            if 'bufptr' not in localvar:
+               localvar['bufptr']=C.variable('p','uint8',pointer=True)
+            code.append(C.line('for({0}=0;{0}<{1};{0}++)'.format(localvar['loopVar'].name,dataElement.arrayLen),indent=indent))
+            block=C.block(indent=indent)
+            indent+=indentStep
+            packLen=self.genPackUnpackInteger(block, buf, operation, valname+'[%s]'%localvar['loopVar'].name, dataElement, localvar, offset, indent)
+            indent-=indentStep
+            code.append(block)
       else:
          packLen=self.genPackUnpackInteger(code, buf, operation, valname, dsg, localvar, offset, indent)
       return packLen
