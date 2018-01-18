@@ -489,10 +489,8 @@ class DataElement:
                      break
                else:
                   raise ApxTypeError('No data type found with name "{}"'.format(self.typeReference))
-            elif isinstance(self.typeReference, AutosarDataType):
-               return self.typeReference.dsg.resolve_data_element(typeList)
             elif isinstance(self.typeReference, DataType):
-               return self.typeReference
+               return self.typeReference.dsg.resolve_data_element(typeList)
             else:
                raise NotImplementedError(type(self.typeReference))
             self.typeReference = obj

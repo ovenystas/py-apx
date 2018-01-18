@@ -173,6 +173,7 @@ class NodeData():
       self.outPortDataMap.append(elem)
 
    def createPackProg(self, port, dataElement, compiler):
+      assert(isinstance(dataElement, apx.DataElement))
       program = compiler.compilePackProg(dataElement)
       if len(self.outPortPrograms) != port.id:
          raise RuntimeError('port id {:d} of port {} is out of sync'.format(port.id, port.name))
