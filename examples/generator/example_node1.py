@@ -42,7 +42,8 @@ def create_autosar_workspace():
 def create_rte_partition(ws):
    partition = autosar.rte.Partition()
    for swc in ws.findall('/ComponentType/*'):
-      partition.addComponent(swc)
+      if isinstance(swc, autosar.component.ApplicationSoftwareComponent):
+         partition.addComponent(swc)
    return partition
 
 def generate_rte_types(partition, derived_dir):

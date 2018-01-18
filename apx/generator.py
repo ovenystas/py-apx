@@ -23,13 +23,14 @@ def _genCommentHeader(comment):
 #       raise NotImplementedError(str(type(constant)))
 
 class SignalInfo:
-   def __init__(self, name,offset, pack_len, func, dsg, operation, init_value=None):
+   def __init__(self, name,offset, pack_len, func, dsg, dataElement, operation, init_value=None):
       self.name=name
       self.offset=offset
       self.pack_len=pack_len
       self.init_value=init_value
       self.func=func
-      self.dsg=dsg      
+      self.dsg=dsg
+      self.dataElement=dataElement
 
       if init_value is not None:
          self.init_data = dsg.createInitData(init_value)
@@ -145,6 +146,7 @@ class NodeGenerator:
          name = node.name
       else:
          prefixed_name='ApxNode_'+name
+      self.node = node
       self.name=name
       self.prefixed_name = prefixed_name
       self.includes=includes
@@ -166,7 +168,7 @@ class NodeGenerator:
          initValue=None
          if port.attr is not None:
             initValue = port.attr.initValue
-         info = SignalInfo(port.name,offset,packLen,func,port.dsg,'unpack', initValue)
+         info = SignalInfo(port.name,offset,packLen,func,port.dsg,port.resolve_type(node.dataTypes), 'unpack', initValue)
          if self.has_callbacks:
             if port.name in callbacks:
                self.callbacks.create(info, callbacks[port.name])
@@ -189,7 +191,7 @@ class NodeGenerator:
          initValue=None
          if port.attr is not None:
             initValue = port.attr.initValue
-         tmp = SignalInfo(port.name,offset,packLen,func,port.resolve_type(node.dataTypes),'pack',initValue)
+         tmp = SignalInfo(port.name,offset,packLen,func,port.dsg, port.resolve_type(node.dataTypes),'pack',initValue)
          signalInfoList.append(tmp)
          signalInfoMap['provide'][port.name]=tmp
          outPortDataLen+=packLen
@@ -212,7 +214,7 @@ class NodeGenerator:
 
    def genPackUnpackInteger(self, code, buf, operation, valname, dataElement, localvar, offset, indent):
       dataLen=0
-      resolvedElement = dataElement.resolve_data_element(None)
+      resolvedElement = dataElement.resolve_data_element(self.node.dataTypes)
       if resolvedElement.typeCode==apx.SINT8_TYPE_CODE or resolvedElement.typeCode==apx.UINT8_TYPE_CODE:
          dataLen=1
          basetype='sint8' if resolvedElement.typeCode==apx.SINT8_TYPE_CODE else 'uint8'
@@ -246,7 +248,7 @@ class NodeGenerator:
       return dataLen
 
    def genPackUnpackItem(self, code, buf, operation, val, dsg, localvar, offset, indent, indentStep):
-      dataElement = dsg.resolve_data_element(None)
+      dataElement = dsg.resolve_data_element(self.node.dataTypes)
       packLen=0
       if isinstance(val,C.variable):
          valname=val.name
@@ -389,12 +391,12 @@ class NodeGenerator:
    def _writeSourceFile(self, fp, signalInfoMap, initFunc, nodeDataFunc, node, inPortDataLen, outPortDataLen, callbackHeader):
       indent=0
       indentStep=3
-
+      
       ctx = apx.Context()
       ctx.append(node)
       nodeText = ctx.dumps()
       sourceFile=C.cfile(None)
-      code = sourceFile.code
+      code = sourceFile.code      
       code.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
       code.append(C.line('// INCLUDES'))
       code.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
