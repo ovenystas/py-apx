@@ -23,10 +23,13 @@ class TestApxGenerator(unittest.TestCase):
     
     def test_code_generator(self):
         node = apx.Node("Test")
+        node.append(apx.DataType('SoundRequest_T','{"SoundId"S"Volume"C}'))
         node.append(apx.RequirePort('U8Port','C','=255'))
         node.append(apx.RequirePort('U8ARPort','C[3]','={255, 255, 255}'))
+        node.append(apx.RequirePort('SoundRequest','T["SoundRequest_T"]', '={65535,255}'))
         node.append(apx.ProvidePort('U16ARPort','S[4]','={65535, 65535, 65535, 65535}'))
         node.append(apx.ProvidePort('U32Port','L','=4294967295'))
+        
         output_dir = 'derived'
         output_dir_full = os.path.join(os.path.dirname(__file__),output_dir)
         if not os.path.exists(output_dir_full):
@@ -42,7 +45,7 @@ class TestApxGenerator(unittest.TestCase):
             generated=fp.read()
         with open (os.path.join(os.path.dirname(__file__), 'expected_gen', 'ApxNode_{0.name}.c'.format(node)), "r") as fp:
             expected=fp.read()
-        self.assertEqual(expected, generated)        
+        self.assertEqual(expected, generated)
         shutil.rmtree(output_dir_full)
 
 if __name__ == '__main__':

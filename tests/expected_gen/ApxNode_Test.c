@@ -9,8 +9,8 @@
 //////////////////////////////////////////////////////////////////////////////
 // CONSTANTS AND DATA TYPES
 //////////////////////////////////////////////////////////////////////////////
-#define APX_DEFINITON_LEN 137u
-#define APX_IN_PORT_DATA_LEN 4u
+#define APX_DEFINITON_LEN 224u
+#define APX_IN_PORT_DATA_LEN 7u
 #define APX_OUT_PORT_DATA_LEN 12u
 //////////////////////////////////////////////////////////////////////////////
 // LOCAL FUNCTIONS
@@ -26,7 +26,7 @@ static const uint8_t m_outPortInitData[APX_OUT_PORT_DATA_LEN]= {
 static uint8 m_outPortdata[APX_OUT_PORT_DATA_LEN];
 static uint8_t m_outPortDirtyFlags[APX_OUT_PORT_DATA_LEN];
 static const uint8_t m_inPortInitData[APX_IN_PORT_DATA_LEN]= {
-   255, 255, 255, 255
+   255, 255, 255, 255, 255, 255, 255
 };
 
 static uint8 m_inPortdata[APX_IN_PORT_DATA_LEN];
@@ -35,10 +35,12 @@ static apx_nodeData_t m_nodeData;
 static const char *m_apxDefinitionData=
 "APX/1.2\n"
 "N\"Test\"\n"
+"T\"SoundRequest_T\"{\"SoundId\"S\"Volume\"C}\n"
 "P\"U16ARPort\"S[4]:={65535, 65535, 65535, 65535}\n"
 "P\"U32Port\"L:=4294967295\n"
 "R\"U8Port\"C:=255\n"
 "R\"U8ARPort\"C[3]:={255, 255, 255}\n"
+"R\"SoundRequest\"T[\"SoundRequest_T\"]:={65535,255}\n"
 "\n";
 
 //////////////////////////////////////////////////////////////////////////////
@@ -84,6 +86,19 @@ Std_ReturnType ApxNode_Read_Test_U8ARPort(uint8 *val)
    return E_OK;
 }
 
+Std_ReturnType ApxNode_Read_Test_SoundRequest(SoundRequest_T *val)
+{
+   uint8 *p;
+   apx_nodeData_lockInPortData(&m_nodeData);
+   p=&m_inPortdata[4];
+   val->SoundId = (uint16) unpackLE(p,(uint8) sizeof(uint16));
+   p+=(uint8) sizeof(uint16);
+   val->Volume = (uint8) unpackLE(p,(uint8) sizeof(uint8));
+   p+=(uint8) sizeof(uint8);
+   apx_nodeData_unlockInPortData(&m_nodeData);
+   return E_OK;
+}
+
 Std_ReturnType ApxNode_Write_Test_U16ARPort(uint16 val)
 {
    uint8 i;
@@ -115,16 +130,16 @@ void Test_inPortDataWritten(void *arg, apx_nodeData_t *nodeData, uint32_t offset
 // LOCAL FUNCTIONS
 //////////////////////////////////////////////////////////////////////////////
 static void outPortData_writeCmd(apx_offset_t offset, apx_size_t len )
-{
-   if ( (m_outPortDirtyFlags[offset] == 0) && (true == apx_nodeData_isOutPortDataOpen(&m_nodeData) ) )
    {
-      m_outPortDirtyFlags[offset] = (uint8_t) 1u;
+      if ( (m_outPortDirtyFlags[offset] == 0) && (true == apx_nodeData_isOutPortDataOpen(&m_nodeData) ) )
+      {
+         m_outPortDirtyFlags[offset] = (uint8_t) 1u;
+         apx_nodeData_unlockOutPortData(&m_nodeData);
+         apx_nodeData_outPortDataNotify(&m_nodeData, (uint32_t) offset, (uint32_t) len);
+         return;
+      }
       apx_nodeData_unlockOutPortData(&m_nodeData);
-      apx_nodeData_outPortDataNotify(&m_nodeData, (uint32_t) offset, (uint32_t) len);
-      return;
    }
-   apx_nodeData_unlockOutPortData(&m_nodeData);
-}
 
 
-
+   
