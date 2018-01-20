@@ -2,7 +2,27 @@ import autosar
 import math
 import re
 import sys
+import copy
 
+INVALID_TYPE_CODE = -1
+UINT8_TYPE_CODE = 0
+UINT16_TYPE_CODE = 1
+UINT32_TYPE_CODE = 2
+UINT64_TYPE_CODE = 3
+SINT8_TYPE_CODE = 4
+SINT16_TYPE_CODE = 5
+SINT32_TYPE_CODE = 6
+SINT64_TYPE_CODE = 7
+STRING_TYPE_CODE = 8
+RECORD_TYPE_CODE = 9
+REFERENCE_TYPE_CODE = 10
+
+VTYPE_INVALID = -1
+VTYPE_SCALAR = 0
+VTYPE_LIST = 1
+VTYPE_MAP = 2
+
+MAX_RECURSE_DEPTH = 10
 
 def match_pair(s,left,right):
    if (len(s)>0) and (s[0]==left):
@@ -20,23 +40,71 @@ def match_pair(s,left,right):
 def parse_str(s):
    return match_pair(s,'"','"')
 
+def _getIntegerTypeCode(dataType):
+   """
+   using an autosar integer datatype, calculate how many bits are required
+   to store its value and based on that, calculate what APX type code to use.
+   """
+   global args
+   if dataType.minVal >= 0:
+      bits = _calcUIntTypeLen(dataType)
+      if bits <=8:
+         if (dataType.minVal>0) or (dataType.maxVal<255):
+            return 'C(%d,%d)'%(dataType.minVal,dataType.maxVal)
+         else:
+            return 'C'
+      elif bits <=16:
+         return 'S'
+      elif bits <=32:
+         return 'L'
+      elif bits <=64:
+         return 'U'
+   elif dataType.minVal<0:
+      bits = _calcIntTypeLen(dataType)      
+      if bits <=8:
+         if (dataType.minval>-128) or dataType.maxVal<127:
+            return 'c(%d,%d)'%(dataType.minval,dataType.maxVal)
+         else:
+            return 'c'
+      elif bits <=16:
+         return 's'
+      elif bits <=32:
+         return 'l'
+      elif bits <=64:
+         return 'u'
+   else:
+      print("not implemented (min=%s)"%dataType.minval)
 
+def _calcUIntTypeLen(dataType):
+   """
+   returs number of bits needed to represent the autosar integer
+   type value.
+   """
+   if isinstance(dataType,autosar.datatype.IntegerDataType):
+      return int(math.ceil(math.log(dataType.maxVal,2)))
+   return None
 
-def _derive_c_typename(item):
+def _calcIntTypeLen(dataType):
+   """
+   same as _calcUIntTypeLen but for signed integers
+   """
+   if isinstance(dataType,autosar.datatype.IntegerDataType):
+      return int(math.ceil(math.log(abs(dataType.maxVal),2)))+1            
+   return None
+
+def _derive_c_typename(dataElement):
    """
    returns the C typename for simple data types
    """
-   if   item['type']=='c': retval = 'sint8'
-   elif item['type']=='C': retval = 'uint8'
-   elif item['type']=='s': retval = 'sint16'
-   elif item['type']=='S': retval = 'uint16'
-   elif item['type']=='l': retval = 'sint32'
-   elif item['type']=='L': retval = 'uint32'
-   elif item['type']=='a': retval = 'uint8'
+   if   dataElement.typeCode == UINT8_TYPE_CODE: retval = 'uint8'
+   elif dataElement.typeCode == UINT16_TYPE_CODE: retval = 'uint16'
+   elif dataElement.typeCode == UINT32_TYPE_CODE: retval = 'uint32'
+   elif dataElement.typeCode == SINT8_TYPE_CODE: retval = 'sint8'
+   elif dataElement.typeCode == SINT16_TYPE_CODE: retval = 'sint16'
+   elif dataElement.typeCode == SINT32_TYPE_CODE: retval = 'sint32'
+   elif dataElement.typeCode == STRING_TYPE_CODE: retval = 'uint8'
    else:
-      raise NotImplementedError(str(item['type']))
-   if item['isArray']:
-      retval+='[%d]'%item['arrayLen']
+      raise NotImplementedError('typeCode={:d}'.format(dataElement.typeCode))
    return retval
 
 
@@ -49,6 +117,7 @@ class Port:
       self.name = name            #name of the port
       self.dsg = DataSignature(dataSignature)
       self.attr = PortAttribute(attributes) if attributes is not None else None
+      self.id = None
 
    def __str__(self):
       if self.attr is not None:
@@ -57,8 +126,28 @@ class Port:
          return '%s"%s"%s:%s'%(self.portType, self.name, dsg, attr)
       else:
          return '%s"%s"%s'%(self.portType, self.name, str(self.dsg))
+   
+   def resolve_type(self, typeList):
+      return self.dsg.resolve_data_element(typeList)
+   
+   @property
+   def data_element(self):
+      data_element = self.dsg.dataElement
+      if data_element.isReference:
+         if isinstance(data_element.typeReference, DataType):
+            return data_element.typeReference.dsg.dataElement
+         else:
+            raise ApxTypeError('Unresolved type reference: {}'.format(str(data_element.typeReference)))
+      else:
+         return data_element
 
-
+   @property
+   def init_value(self):
+      if self.attr is None:
+         return None
+      else:
+         return self.attr.initValue
+   
 class RequirePort(Port):
    """
    APX require port
@@ -85,7 +174,7 @@ class DataType:
    """
    def __init__(self, name, dataSignature, attributes=None):
       self.name = name
-      self.dsg = DataSignature(dataSignature, self)
+      self.dsg = DataSignature(dataSignature, None, self)
       self.attr = attributes
 
    def __str__(self):
@@ -98,68 +187,68 @@ class DataSignature:
    """
    APX Datasignature
    """
-   def __init__(self, dsg, parent=None):
+   def __init__(self, dsg, typeList=None, parent=None):
       if isinstance(dsg, str):
-         (signature,remain)=DataSignature._parseDataSignature(dsg)
+         (dataElement,remain)=DataSignature.parseDataSignature(dsg, typeList)
          if len(remain)>0:
-            raise Exception("string '%s' not fully parsed"%dsg)
-         self.data=signature
+            raise ParseError("string '%s' not fully parsed"%dsg)
+         assert(isinstance(dataElement, DataElement))
+         self.dataElement=dataElement
          self.str=dsg
-      elif isinstance(dsg, dict):
-         self.data=dsg
+      elif isinstance(dsg, DataElement):
+         self.dataElement=copy.deepcopy(DataElement)
          self.str=None
       else:
          raise NotImplementedError(type(dsg))
-      self.parent=parent
-      self.structFmtStr=None
-      self._conversionTable={'a':'s', 'c':'b', 's':'h','l':'I', #conversion table from APX type codes into python struct format characters
-                                'u':'q', 'C':'B', 'S':'H','L':'I',
-                                'U':'Q'}
+      self.parent=parent      
 
    def __str__(self):
       return self.str
 
-   def packLen(self,typeList=None):
+   def packLen(self):
       result=0
       stack = []
-      i = iter([self.data])
+      i = iter([self.dataElement])
 
       while True:
          try:
-            node = next(i)
+            dataElement = next(i)
          except StopIteration:
             try:
                i = stack.pop()
                continue
             except IndexError:
                break
-         if node['type']=='record':
+         if dataElement.typeCode == RECORD_TYPE_CODE:
             stack.append(i)
-            i=iter(node['elements'])
+            i=iter(dataElement.elements)
          else:
-            elemSize=self.calcElemSize(node,typeList)
+            elemSize=self._calcElemSize(dataElement)
             result+=elemSize
-
       return result
 
-   def calcElemSize(self,node,typeList):
-      if node['type']=='C' or node['type']=='c' or node['type']=='E' or node['type']=='a' or node['type']=='b': elemSize=1
-      elif node['type']=='S' or node['type']=='s': elemSize=2
-      elif node['type']=='L' or node['type']=='l': elemSize=4
-      elif node['type']=='u' or node['type']=='U': elemSize=8
-      elif node['type']=='n': elemSize=4
-      elif node['type']=='N': elemSize=8
-      elif node['type']=='typeRef':
-         if not isinstance(typeList,list):
-            raise ValueError("typeList must be of type list")
-         dataType=typeList[self.data['refId']]
-         return self.calcElemSize(dataType.dsg.data,typeList)
+   def _calcElemSize(self, dataElement):
+      typeCodes = [UINT8_TYPE_CODE, UINT16_TYPE_CODE, UINT32_TYPE_CODE, UINT64_TYPE_CODE,
+                     SINT8_TYPE_CODE, SINT16_TYPE_CODE, SINT32_TYPE_CODE, SINT64_TYPE_CODE,
+                     STRING_TYPE_CODE]
+      typeSizes = [1, 2, 4, 8, 1, 2, 4, 8, 1]
+      if dataElement.typeCode == REFERENCE_TYPE_CODE:
+         dataType = dataElement.typeReference
+         assert(isinstance(dataType, DataType))
+         return self._calcElemSize(dataType.dsg.dataElement)
+      elif dataElement.typeCode == RECORD_TYPE_CODE:
+         elemSize = 0
+         for childElement in dataElement.elements:
+            elemSize+=self._calcElemSize(childElement)
       else:
-         elemSize=0
-         for elem in node['elements']:
-            elemSize+=self.calcElemSize(elem,typeList)
-      if node['isArray']:
-         return elemSize*node['arrayLen']
+         try:
+               i = typeCodes.index(dataElement.typeCode)
+         except ValueError:
+               raise NotImplementedError(dataElement.typeCode)
+         elemSize =  typeSizes[i]  
+      
+      if dataElement.isArray():
+         return elemSize*dataElement.arrayLen
       else:
          return elemSize
 
@@ -168,191 +257,356 @@ class DataSignature:
       """
       Returns the C type name of the data signature as a string. This return value can be used for code generation in C/C++ code.
       """
-      if self.data['type']=='typeRef':
-         return typeList[self.data['refId']].name
+      if self.dataElement.isReference:
+         data_type = self.dataElement.typeReference
+         assert(isinstance(data_type, DataType))
+         return data_type.name
       else:
-         return _derive_c_typename(self.data)
-   def isComplexType(self,typeList=None):
-      """
-      Returns True of the type is record, array or string. Otherwise it returns False
-      """
-      obj=self.resolveType(typeList)
-      if ( (obj.data['type']=='record') or (obj.data['type']=='string') or
-            ( ('isArray' in obj.data) and (obj.data['isArray']==True) ) ):
-         return True
-      return False
-   def isArray(self,typeList=None):
-      """
-      Returns True of the type is array. Otherwise it returns False
-      """
-      obj=self.resolveType(typeList)
-      if ('isArray' in obj.data) and (obj.data['isArray']==True):
-         return True
-      return False
-   def resolveType(self,typeList=None):
-      """
-      Returns type object
-      """
-      if self.data['type']=='typeRef':
-         if typeList is not None:
-            obj=typeList[self.data['refId']].dsg
-         elif self.typeList is not None:
-            obj=self.typeList[self.data['refId']].dsg
-         else:
-            raise ValueError('no typelist avaliable')
+         return _derive_c_typename(self.dataElement)
+   
+   def isComplexType(self, typeList = None):
+      return self.dataElement.isComplexType(typeList)
 
-      else:
-         obj=self
-      return obj
+   def isArray(self, typeList = None):
+      return self.dataElement.isArray(typeList)
 
-   def calcStructFmtStr(self, typeList=None, byteOrder='<'):
-      """
-      returns python struct format string
-      """
-      result= []
-      stack = []
-      i = iter([self.data])
-      while True:
-         try:
-            elem = next(i)
-         except StopIteration:
-            try:
-               i = stack.pop()
-               continue
-            except IndexError:
-               break
-         if elem['type']=='record':
-            stack.append(i)
-            i=iter(elem['elements'])
-         else:
-            fmt=self._deriveStructFormatStringElem(elem,typeList)
-            result.append(fmt)
-      self.structFmtStr=byteOrder+''.join(result)
-      return self.structFmtStr
+   def createInitData(self, initValue):
+      return self.dataElement.createInitData(initValue)
 
-   def createInitData(self, init_value):
-      data = bytearray()
-      if (self.data['type'] == 'record'):
-         if (init_value['type'] != 'record'):
-            raise ValueError('invalid init value type: got %s, expected record'%(init_value['type']))
-         if len(init_value['elements']) != len(self.data['elements']):
-            raise ValueError('Incorrect number of record elements in init_value: got %d, expected %s'%(len(init_value['elements']), len(self.data['elements'])))
-         for i,dsg_elem in enumerate(self.data['elements']):
-            data.extend(DataSignature._createInitDataInner(dsg_elem, init_value['elements'][i]))
-      else:
-         data.extend(DataSignature._createInitDataInner(self.data, init_value))
-      return data
+   def resolve_data_element(self, typeList = None):
+      return self.dataElement.resolve_type(typeList)
 
    @staticmethod
-   def _createInitDataInner(dsg_elem, init_value, is_array_elem=False):
-      data = bytearray()
-      if (dsg_elem['type'] == 'record'):
-         raise NotImplementedError('record')
-      elif (dsg_elem['type']=='a'):
-            if (init_value['type'] != 'string'):
-               raise ValueError('invalid init value type: got %s, expected string'%(init_value['type']))
-            if len(init_value['value']) > dsg_elem['arrayLen']:
-               print('Warning: init value "%s" will be truncated to %d bytes'%(init_value['value'], dsg_elem['arrayLen']), file=sys.stderr)
-            for i in range(dsg_elem['arrayLen']):
-               if i<len(init_value['value']):
-                  data.append(ord(init_value['value'][i]))
-               else:
-                  data.append(0)
-      elif (dsg_elem['type'] in ['c', 'C', 's', 'S', 'l', 'L']):
-         if (dsg_elem['isArray']) and (not is_array_elem):
-            if (init_value['type'] != 'record'):
-               raise ValueError('invalid init value type: got %s, expected record'%(init_value['type']))
-            for init_elem in init_value['elements']:
-               data.extend(DataSignature._createInitDataInner(dsg_elem, init_elem, True))
-         else:
-            if init_value['type'] != 'integer':
-               raise ValueError('invalid init value type: got %s, expected integer'%(init_value['type']))
-            if dsg_elem['type']=='C' or dsg_elem['type']=='c':
-               data.append(int(init_value['value']) & 0xFF)
-            elif dsg_elem['type']=='S' or dsg_elem['type']=='s':
-               #TODO: implement big endian support
-               data.append(int(init_value['value']) & 0xFF)
-               data.append(int(init_value['value'])>>8 & 0xFF)
-            elif dsg_elem['type']=='L' or dsg_elem['type']=='l':
-               #TODO: implement big endian support
-               data.append(int(init_value['value']) & 0xFF)
-               data.append(int(init_value['value'])>>8 & 0xFF)
-               data.append(int(init_value['value'])>>16 & 0xFF)
-               data.append(int(init_value['value'])>>24 & 0xFF)
-            else:
-               raise NotImplementedError(dsg_elem['type'])
-      else:
-         raise NotImplementedError(dsg_elem['type'])
-      return data
-
-   @staticmethod
-   def _parseRecordSignature(remain):
-      elements=[]
+   def _parseRecordSignature(remain, typeList):
+      recordElement = DataElement.Record()
       while len(remain)>0:
          (name,remain)=match_pair(remain,'"','"')
          if len(remain)>0:
-            (elem,remain)=DataSignature._parseDataSignature(remain)
-            if elem == None:
+            (childElement,remain)=DataSignature.parseDataSignature(remain, typeList)            
+            if childElement is None:
                if remain[0] == '}':
-                  return {'type':'record','elements':elements,'isArray':False},remain[1:]
+                  return (recordElement,remain[1:])
                else:
-                  raise Exception('syntax error while parsing record')
+                  raise ParseError('syntax error while parsing record')
             else:
-               elem['name']=name
-               elements.append(elem)
-      return (None,remain)
+               assert(isinstance(childElement, DataElement))
+               childElement.name = name               
+               recordElement.elements.append(childElement)
+      raise ParseError("Missing '}' in data signature")
 
    @staticmethod
-   def _parseExtendedTypeCode(c,data):
-      values=re.split(r'\s*,\s*',data)
+   def _parseExtendedTypeCode(text):
+      values=re.split(r'\s*,\s*',text)
       if len(values)<2:
-         raise Exception("min,max missing from %s"%data)
-      attr = {'min':int(values[0]),'max':int(values[1])}
-      return {'type':c,'isArray':False,'attr':attr}
+         raise Exception("min,max missing from %s"%text)
+      minVal = int(values[0])
+      maxVal = int(values[1])
+      return (minVal, maxVal)
+      
 
    @staticmethod
-   def _parseDataSignature(s):
+   def parseDataSignature(s, typeList=None):
       remain=s
       c=remain[0]
       if c=='{': #start of record
          remain = remain[1:]
-         return DataSignature._parseRecordSignature(remain)
+         return DataSignature._parseRecordSignature(remain,typeList)
       if c=='T': #typeRef
          (data,remain2)=match_pair(remain[1:],'[',']')
-         if data!=None and len(remain2)==0:
-            return({'type':'typeRef','refId':int(data)},remain2)
+         if data is not None:
+            (data2,remain3)=match_pair(data,r'"',r'"')
+            if data2 is not None:
+               assert(len(remain3)==0)
+               dataType = DataSignature._get_type_by_name(typeList, data2)
+               return DataElement.TypeReference(dataType), remain2
+            else:
+               dataType = DataSignature._get_type_by_id(typeList, int(data))
+               return DataElement.TypeReference(dataType), remain2
          else:
-            raise Exception("parse failure '%s'"%remain)
+               raise ParseError("Parse failure near '%s', unmatched '[]' pair "%remain[1:])
       else:
-         typeCodes=['a','c','s','l','u','n','C','S','L','U','N']
+         typeCodesChar=['C','S','L','U','c','s','l','u','a']
+         typeCodeInt = [UINT8_TYPE_CODE, UINT16_TYPE_CODE, UINT32_TYPE_CODE, UINT64_TYPE_CODE,
+                     SINT8_TYPE_CODE, SINT16_TYPE_CODE, SINT32_TYPE_CODE, SINT64_TYPE_CODE,
+                     STRING_TYPE_CODE]
          try:
-            i = typeCodes.index(c)
+            i = typeCodesChar.index(c)
          except ValueError:
             return (None,remain)
-         if (len(remain)>1) and (remain[1]=='['):
-               (data,remain)=match_pair(remain[1:],'[',']')
-               return ({'type':c,'isArray':True,'arrayLen':int(data)},remain)
-         if (len(remain)>1) and (remain[1]=='('):
-               (data,remain)=match_pair(remain[1:],'(',')')
-               return (DataSignature._parseExtendedTypeCode(c,data),remain)
+         remain=remain[1:]
+         if (len(remain)>0) and (remain[0]=='('):
+               (data,remain)=match_pair(remain[0:],'(',')')
+               if data is None:
+                  raise ParseError("Expecting ')' near: "+remain)
+               (minVal,maxVal) = DataSignature._parseExtendedTypeCode(data)
          else:
-            remain=remain[1:]
-            return ({'type':c,'isArray':False},remain)
+            (minVal,maxVal) = (None, None)
+         if (len(remain)>0) and (remain[0]=='['):
+               (value,remain)=match_pair(remain[0:],'[',']')
+               if value is None:
+                  raise ParseError("Expecting ']' near: "+remain)
+               arrayLen=int(value)
+         else:
+            arrayLen = None
+         dataElement = DataElement(None, typeCodeInt[i], minVal, maxVal, arrayLen)
+         return (dataElement, remain)
 
-   def _deriveStructFormatStringElem(self, elem, typeList=None):
-      if elem['type'] in self._conversionTable:
-         formatCharacter=self._conversionTable[elem['type']]
-      elif elem['type']=='typeRef':
-         if not isinstance(typeList,list):
-            raise ValueError("typeList must be of type list")
-         dataType=typeList[self.data['refId']]
-         return self._deriveStructFormatStringElem(dataType.dsg.data,typeList)
+   @staticmethod
+   def _get_type_by_id(typeList, i):
+      if typeList is None:
+         return i
+      if i<len(typeList):
+         return typeList[i]
       else:
-         raise NotImplementedError(elem['type'])
-      if elem['isArray']:
-         return "%d%s"%(elem['arrayLen'],formatCharacter)
+         raise ValueError('Invalid type id: {:d}'.format(i))
+
+   @staticmethod
+   def _get_type_by_name(typeList, name):
+      if typeList is None:
+         return name
+      for dataType in typeList:
+         if dataType.name == name:
+            return dataType
       else:
-         return formatCharacter
+         raise ValueError('No data type found with name {}'.format(name))
+      
+      
+   
+
+class DataElement:
+   """
+   This class describes the type of data that is contained in a data signature. A data signature contains one data element.
+   """
+   def __init__(self, name=None, typeCode = INVALID_TYPE_CODE, minVal = None, maxVal = None, arrayLen = None, elements = None, reference=None):
+      self.name = name
+      if reference is not None:         
+         self.typeCode = REFERENCE_TYPE_CODE
+         assert(isinstance(reference, (int, str, DataType)))
+         self.typeReference = reference
+         self.minVal = None
+         self.maxVal = None
+         self.arrayLen = None
+      else:      
+         self.typeCode = typeCode
+         self.minVal = minVal
+         self.maxVal = maxVal
+         self.arrayLen = arrayLen
+         self.typeReference = None
+      
+      if elements is not None:
+         self.elements = list(elements)
+      else:
+         self.elements = None
+   
+   @property
+   def arrayLen(self):
+      return self._arrayLen
+   
+   @arrayLen.setter
+   def arrayLen(self, value):
+      if value is not None:            
+         if value < 0:
+            raise ValueError('invalid length: %s'%value)
+         self._arrayLen = value
+      else:
+          self._arrayLen = None
+   
+   def isArray(self, typeList = None):
+      dataElement = self.resolve_data_element(typeList)
+      return dataElement.arrayLen is not None
+      
+   def isRecord(self, typeList = None):
+      dataElement = self.resolve_data_element(typeList)
+      return dataElement.typeCode == RECORD_TYPE_CODE
+
+   def isComplexType(self, typeList = None):
+      return self.isArray() or self.isRecord()
+   
+   @property
+   def isReference(self):
+      return self.typeCode == REFERENCE_TYPE_CODE
+      
+   @classmethod
+   def UInt8(cls, name=None, minVal = None, maxVal = None, arrayLen = None):
+      return cls(name, UINT8_TYPE_CODE, minVal, maxVal, arrayLen)
+
+   @classmethod
+   def UInt16(cls, name=None, minVal = None, maxVal = None, arrayLen = None):
+      return cls(name, UINT16_TYPE_CODE, minVal, maxVal, arrayLen)
+
+   @classmethod
+   def UInt32(cls, name=None, minVal = None, maxVal = None, arrayLen = None):
+      return cls(name, UINT32_TYPE_CODE, minVal, maxVal, arrayLen)
+
+   @classmethod
+   def String(cls, name=None, arrayLen = None):
+      return cls(name, STRING_TYPE_CODE, None, None, arrayLen)
+
+   @classmethod
+   def SInt8(cls, name=None, minVal = None, maxVal = None, arrayLen = None):
+      return cls(name, SINT8_TYPE_CODE, minVal, maxVal, arrayLen)
+
+   @classmethod
+   def SInt16(cls, name=None, minVal = None, maxVal = None, arrayLen = None):
+      return cls(name, SINT16_TYPE_CODE, minVal, maxVal, arrayLen)
+
+   @classmethod
+   def SInt32(cls, name=None, minVal = None, maxVal = None, arrayLen = None):
+      return cls(name, SINT32_TYPE_CODE, minVal, maxVal, arrayLen)
+
+   @classmethod
+   def Record(cls, name=None, elements = None):
+      self = cls(name, RECORD_TYPE_CODE)
+      if elements is not None:
+         self.elements = list(elements)
+      else:
+         self.elements = []
+      return self
+
+   @classmethod
+   def TypeReference(cls, reference, name=None):
+      self = cls(name, reference = reference)      
+      return self
+   
+   def append(self, elem):
+      if self.typeCode == RECORD_TYPE_CODE:
+         self.elements.append(elem)
+      else:
+         raise ParseError('DataElement is not a record element')
+
+   def resolve_type(self, typeList):
+      """
+      Updates internal type references to type objects
+      """
+      if self.typeCode == REFERENCE_TYPE_CODE:
+         if typeList is not None:
+            if isinstance(self.typeReference, int):
+               obj=typeList[self.typeReference]
+            elif isinstance(self.typeReference, str):
+               for dataType in typeList:
+                  if dataType.name == self.typeReference:
+                     obj = dataType
+                     break
+               else:
+                  raise ApxTypeError('No data type found with name "{}"'.format(self.typeReference))
+            elif isinstance(self.typeReference, DataType):
+               return self.typeReference.dsg.resolve_data_element(typeList)
+            else:
+               raise NotImplementedError(type(self.typeReference))
+            self.typeReference = obj
+            return obj
+         else:
+            raise ValueError('typeList argument must not be None')
+      elif self.typeCode == RECORD_TYPE_CODE:
+         #TODO: detect circular loops in type-reference lookups to prevent infinite loop
+         for element in self.elements:
+            element.resolve_type(typeList)
+      return self
+
+   def resolve_data_element(self, typeList):
+      dataElement, count = self,0
+      while(count < MAX_RECURSE_DEPTH):
+         count+=1
+         if dataElement.typeCode == REFERENCE_TYPE_CODE:
+            if isinstance(dataElement.typeReference, DataType):
+               dataType = dataElement.typeReference
+               dataElement = dataType.dsg.dataElement
+            else:
+               raise ApxTypeError('Unresolved data type: {}'.format(type(dataElement.typeReference)))
+         else:
+            break
+      if (count >= MAX_RECURSE_DEPTH) and dataElement.typeCode == REFERENCE_TYPE_CODE:
+         raise RuntimeError('Max recurse depth reached')
+      return dataElement
+
+   def createInitData(self, initValue):
+      data = bytearray()
+      if (self.typeCode == RECORD_TYPE_CODE):
+         if (initValue.valueType != VTYPE_LIST):
+            raise ValueError('invalid init value type: list expected')
+         if len(initValue.elements) != len(self.elements):
+            raise ValueError('Incorrect number of record elements in init_value: got %d, expected %s'%(len(initValue.elements), len(self.dataElement.elements)))
+         for i,dataElement in enumerate(self.elements):
+            data.extend(DataElement._createInitDataInner(dataElement, initValue.elements[i]))
+      else:
+         data.extend(DataElement._createInitDataInner(self, initValue))
+      return data
+
+   @staticmethod
+   def _createInitDataInner(dataElement, initValue, is_array_elem=False):
+      data = bytearray()
+      if (dataElement.typeCode == RECORD_TYPE_CODE):
+         if (initValue.valueType != VTYPE_LIST):
+            raise ValueError('invalid init value type: list expected')
+         if len(initValue.elements) != len(dataElement.elements):
+            raise ValueError('Incorrect number of record elements in init_value: got %d, expected %s'%(len(initValue.elements), len(self.dataElement.elements)))
+         for i,childElement in enumerate(dataElement.elements):
+            data.extend(DataElement._createInitDataInner(childElement, initValue.elements[i]))
+      elif (dataElement.typeCode == STRING_TYPE_CODE):
+            if not initValue.isString:
+               raise ValueError('invalid init value type: expected string')
+            if len(initValue.value) > dataElement.arrayLen:
+               print('Warning: init value "%s" will be truncated to %d bytes'%(initValue.value, dataElement.arrayLen), file=sys.stderr)
+            for i in range(dataElement.arrayLen):
+               if i<len(initValue.value):
+                  data.append(ord(initValue.value[i]))
+               else:
+                  data.append(0)
+      elif (dataElement.typeCode in [UINT8_TYPE_CODE, UINT16_TYPE_CODE, UINT32_TYPE_CODE, SINT8_TYPE_CODE, SINT16_TYPE_CODE, SINT32_TYPE_CODE]):
+         if (dataElement.isArray()) and (not is_array_elem):
+            if (initValue.valueType != VTYPE_LIST):
+               raise ValueError('invalid init value type: expected list')
+            for initElem in initValue.elements:
+               data.extend(DataElement._createInitDataInner(dataElement, initElem, True))
+         else:
+            if initValue.valueType != VTYPE_SCALAR:
+               raise ValueError('invalid init value type: got %s, expected integer'%(initValue.value))
+            if dataElement.typeCode==UINT8_TYPE_CODE or dataElement.typeCode==SINT8_TYPE_CODE:
+               data.append(int(initValue.value) & 0xFF)
+            elif dataElement.typeCode==UINT16_TYPE_CODE or dataElement.typeCode==SINT16_TYPE_CODE:
+               #TODO: implement big endian support
+               data.append(int(initValue.value) & 0xFF)
+               data.append(int(initValue.value)>>8 & 0xFF)
+            elif dataElement.typeCode==UINT32_TYPE_CODE or dataElement.typeCode==SINT32_TYPE_CODE:
+               #TODO: implement big endian support
+               data.append(int(initValue.value) & 0xFF)
+               data.append(int(initValue.value)>>8 & 0xFF)
+               data.append(int(initValue.value)>>16 & 0xFF)
+               data.append(int(initValue.value)>>24 & 0xFF)
+            else:
+               raise NotImplementedError(dataElement.typeCode)
+      elif dataElement.typeCode == REFERENCE_TYPE_CODE:
+         dataType = dataElement.typeReference
+         assert(isinstance(dataType, DataType))
+         return DataElement._createInitDataInner(dataType.dsg.dataElement, initValue, is_array_elem)
+      else:
+         raise NotImplementedError(dataElement.typeCode)
+      return data
+
+class InitValue:
+   def __init__(self, valueType, value = None):
+      self.valueType = valueType
+      self.value = value
+      if valueType == VTYPE_LIST:
+         self.elements = []
+      else:
+         self.elements = None
+   @property
+   def isString(self):
+      return isinstance(self.value, str)
+   
+   @classmethod
+   def Int(cls, value):
+      return cls(VTYPE_SCALAR, int(value))
+
+   @classmethod
+   def String(cls, value):
+      return cls(VTYPE_SCALAR, str(value))
+
+   @classmethod
+   def List(cls):
+      return cls(VTYPE_LIST)
+      
 
 class PortAttribute:
    """
@@ -388,7 +642,7 @@ class PortAttribute:
             self.isParameter=True
             remain=remain[1:]
          else:
-            raise SyntaxError
+            raise ParseError(text)
 
    def __str__(self):
       return self.str
@@ -397,29 +651,29 @@ class PortAttribute:
       remain=remain.lstrip()
       if remain.startswith('{'):
          (match,remain2)=match_pair(remain,'{','}')
-         elements=[]
+         initValue = InitValue.List()
          while len(match)>0:
             match=match.lstrip()
             (elem,match)=self._parseInitValue(match)
-            elements.append(elem)
+            initValue.elements.append(elem)
             match=match.lstrip()
             if match.startswith(','):
                match=match[1:]
                match=match.lstrip()
             elif len(match)==0:
-               return ({'type':'record','elements':elements},remain2)
+               return (initValue,remain2)
             else:
-               raise SyntaxError
+               raise ParseError
       else:
          m=PortAttribute._p2.match(remain)
          if m:
             remain=remain[m.end():]
             if m.group(1) is not None:
-               return ({'type': 'integer', 'value': int(m.group(1),16)},remain)
+               return (InitValue.Int(int(m.group(1),16)),remain)
             elif m.group(2) is not None:
-               return ({'type': 'integer', 'value': int(m.group(2),10)},remain)
+               return (InitValue.Int(int(m.group(2),10)),remain)
             elif m.group(3) is not None:
-               return ({'type': 'string', 'value': m.group(3)},remain)
+               return (InitValue.String(m.group(3)),remain)
       return (None,remain)
 
 class TypeAttribute(object):
@@ -436,7 +690,7 @@ class TypeAttribute(object):
          if remain.startswith('VT('):
             (result,remain) = match_pair(remain[2:],'(',')')
             if result == None:
-               raise SyntaxError
+               raise ParseError
             else:
                self.valueTable = []
                strings = result.split(',')
@@ -444,8 +698,110 @@ class TypeAttribute(object):
                   (name,remain2)=parse_str(string)
                   self.valueTable.append(name)
          else:
-            raise SyntaxError
+            raise ParseError
 
 
+class AutosarPort:
+   """
+   An AUTOSAR port (base type)
+   """
+   def __init__(self,name,typeId):
+      self.name = name
+      self.typeId = typeId
 
+class AutosarRequirePort(AutosarPort):
+   def __init__(self, name, typeId, ws=None, port=None):
+      super().__init__(name,typeId)
+      if (ws is not None) and (port is not None):
+         self.attr = self._calcAttribute(ws,port)
+   
+   def __str__(self):
+      if self.attr is not None:
+         return 'R"%s"T[%d]:%s'%(self.name,self.typeId,self.attr)
+      else:
+         return 'R"%s"T[%d]'%(self.name,self.typeId)
+   
+   def mirror(self):
+      other = AutosarProvidePort(self.name, self.typeId)
+      other.attr = self.attr
+      return other
+
+class AutosarProvidePort(AutosarPort):
+   def __init__(self, name, typeId, ws=None, port=None):
+      super().__init__(name,typeId)
+      if (ws is not None) and (port is not None):
+         self.attr = self._calcAttribute(ws,port)
+   
+   def __str__(self):
+      if self.attr is not None:
+         return 'P"%s"T[%d]:%s'%(self.name,self.typeId,self.attr)
+      else:
+         return 'P"%s"T[%d]'%(self.name,self.typeId)
+
+   def mirror(self):
+      other = AutosarRequirePort(self.name, self.typeId)
+      other.attr = self.attr
+      return other
+
+class AutosarDataType(DataType):
+   def __init__(self, ws, dataType, parent = None):
+      self.name=dataType.name
+      self.dsg=DataSignature(self._calcDataSignature(ws,dataType), parent)
+      typeSemantics = ws.find('/DataType/DataTypeSemantics/%s'%dataType.name)
+      if typeSemantics is not None:
+         self.attr = self._calcAttribute(dataType,typeSemantics)
+      else:
+         self.attr=None      
+   
+   def __str__(self):
+      if self.attr is not None:
+         return 'T"%s"%s:%s'%(self.name,self.dsg,self.attr)
+      else:
+         return 'T"%s"%s'%(self.name,self.dsg)
+   
+   def _calcAttribute(self,dataType,typeSemantics):
+      if isinstance(typeSemantics,autosar.datatype.CompuMethodConst):
+         values=[]
+         for elem in typeSemantics.elements:
+            assert(isinstance(elem,autosar.datatype.CompuConstElement))
+            values.append(elem.textValue)
+         v=','.join(['"%s"'%x for x in values])
+         return "VT(%s)"%v
+      return None
+
+   def _calcDataSignature(self,ws,dataType):      
+      if isinstance(dataType,autosar.datatype.BooleanDataType):
+         return 'C(0,1)'
+      if isinstance(dataType,autosar.datatype.IntegerDataType):      
+         return _getIntegerTypeCode(dataType)
+      elif isinstance(dataType,autosar.datatype.ArrayDataType):
+         typeCode = _getIntegerTypeCode(typeData.find(dataType['typeRef']))
+         if typeCode != None:
+            return "%s[%d]"%(typeCode,int(dataType.length))
+         else:
+            raise Exception("unsupported type: %s"%typeData.find(dataType['typeRef']))
+      elif isinstance(dataType,autosar.datatype.StringDataType):
+         typeCode = 'a'
+         if typeCode != None:
+            return "%s[%d]"%(typeCode,int(dataType.length)+1)            
+      elif isinstance(dataType,autosar.datatype.RecordDataType):
+         result="{"
+         for elem in dataType.elements:
+            #remove _RE from end of element names
+            if elem.name.endswith('_RE'):
+               elem.name=elem.name[:-3]
+            childType = ws.find(elem.typeRef, role="DataType")
+            if childType is None:
+               raise ValueError("invalid type reference: %s"%elem.typeRef)
+            result+='"%s"%s'%(elem.name, self._calcDataSignature(ws, childType))            
+         result+="}"
+         return result
+      else: raise Exception('unhandled data type: %s'%type(dataType))
+      return ""
+
+class ParseError(RuntimeError):
+   pass
+
+class ApxTypeError(RuntimeError):
+   pass
 

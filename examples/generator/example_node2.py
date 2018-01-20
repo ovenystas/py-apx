@@ -9,7 +9,9 @@ def create_dir(dir_name):
 
 def create_autosar_workspace():
    ws = autosar.workspace()
-   dataTypes = ws.getDataTypePackage()
+   dataTypes = ws.createPackage('DataType', role='DataType')
+   dataTypes.createSubPackage('CompuMethod', role='CompuMethod')
+   dataTypes.createSubPackage('Unit', role='Unit')
    dataTypes.createIntegerDataType('OffOn_T', valueTable=[
           "OffOn_Off",
           "OffOn_On",
@@ -19,19 +21,19 @@ def create_autosar_workspace():
    dataTypes.createIntegerDataType('VehicleSpeed_T', min=0, max=65535, offset=0, scaling=1/64, unit='km/h')
    dataTypes.createIntegerDataType('EngineSpeed_T', min=0, max=65535, offset=0, scaling=1/8, unit='rpm')
    dataTypes.createIntegerDataType('Seconds_T', min=0, max=63, offset=0, scaling=1, unit='Seconds')
-   constants = ws.getConstantPackage()
+   constants = ws.createPackage('Constant', role='Constant')
    constants.createConstant('C_EngineRunningStatus_IV', 'OffOn_T', 3)
    constants.createConstant('C_FuelLevelPercent_IV', 'Percent_T', 255)
    constants.createConstant('C_VehicleSpeed_IV', 'VehicleSpeed_T', 65535)
    constants.createConstant('C_EngineSpeed_IV', 'EngineSpeed_T', 0)
    constants.createConstant('C_Rtc_Seconds_IV', 'Seconds_T', 63)
-   portInterfaces = ws.getPortInterfacePackage()
+   portInterfaces = ws.createPackage('PortInterface', role='PortInterface')
    portInterfaces.createSenderReceiverInterface('EngineRunningStatus_I', autosar.DataElement('EngineRunningStatus', 'OffOn_T'))
    portInterfaces.createSenderReceiverInterface('FuelLevelPercent_I', autosar.DataElement('FuelLevelPercent', 'Percent_T'))
    portInterfaces.createSenderReceiverInterface('VehicleSpeed_I', autosar.DataElement('VehicleSpeed', 'VehicleSpeed_T'))
    portInterfaces.createSenderReceiverInterface('EngineSpeed_I', autosar.DataElement('EngineSpeed','EngineSpeed_T'))
    portInterfaces.createSenderReceiverInterface('Rtc_Seconds_I', autosar.DataElement('Rtc_Seconds','Seconds_T'))
-   components = ws.getComponentTypePackage()
+   components = ws.createPackage('ComponentType', role='ComponentType')
    swc = components.createApplicationSoftwareComponent('Example2')
    swc.createProvidePort('EngineRunningStatus', 'EngineRunningStatus_I', initValueRef=constants['C_EngineRunningStatus_IV'].ref)
    swc.createProvidePort('VehicleSpeed', 'VehicleSpeed_I', initValueRef=constants['C_VehicleSpeed_IV'].ref)
@@ -45,12 +47,13 @@ def create_autosar_workspace():
 def create_rte_partition(ws):
    partition = autosar.rte.Partition()
    for swc in ws.findall('/ComponentType/*'):
-      partition.addComponent(swc)
+      if isinstance(swc, autosar.component.AtomicSoftwareComponent):
+         partition.addComponent(swc)
    return partition
 
 def generate_rte_types(partition, derived_dir):
    type_generator = autosar.rte.TypeGenerator(partition)
-   type_generator.generate(derived_dir+'/Rte_Type.h')
+   type_generator.generate(derived_dir)
 
 def create_apx_context(ws):
    context = apx.Context()

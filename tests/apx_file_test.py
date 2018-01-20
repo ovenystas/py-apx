@@ -47,22 +47,12 @@ class TestApxFile(unittest.TestCase):
       self.assertEqual(data, b"\x01\x02\x03")
 
    def test_output_file(self):
-      mockFileManager = MockFileManager()
       outFile = apx.OutputFile('test1.out', 5)
-      outFile.fileManager=mockFileManager
       self.assertIsInstance(outFile.data, bytearray)
       self.assertEqual(len(outFile.data), 5)
       retval = outFile.write(2, b"\x01\x02\x03")
       self.assertEqual(retval, 3)
-      self.assertEqual(len(mockFileManager.calls), 1)
-      self.assertIs(mockFileManager.calls[-1].file,outFile)
-      self.assertEqual(mockFileManager.calls[-1].offset,2)
-      self.assertEqual(mockFileManager.calls[-1].length,3)
       self.assertEqual(outFile.data[2:5], b"\x01\x02\x03")
-      data = outFile.read(mockFileManager.calls[-1].offset, mockFileManager.calls[-1].length)
-      self.assertIsInstance(data, bytes)
-      self.assertEqual(len(data), 3)
-      self.assertEqual(data, b"\x01\x02\x03")
 
 
 
