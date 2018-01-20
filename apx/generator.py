@@ -589,19 +589,16 @@ class NodeGenerator:
         code.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
         if outPortDataLen>0:
             code.append('''static void outPortData_writeCmd(apx_offset_t offset, apx_size_t len )
+{
+   if ( (m_outPortDirtyFlags[offset] == 0) && (true == apx_nodeData_isOutPortDataOpen(&m_nodeData) ) )
    {
-      if ( (m_outPortDirtyFlags[offset] == 0) && (true == apx_nodeData_isOutPortDataOpen(&m_nodeData) ) )
-      {
-         m_outPortDirtyFlags[offset] = (uint8_t) 1u;
-         apx_nodeData_unlockOutPortData(&m_nodeData);
-         apx_nodeData_outPortDataNotify(&m_nodeData, (uint32_t) offset, (uint32_t) len);
-         return;
-      }
+      m_outPortDirtyFlags[offset] = (uint8_t) 1u;
       apx_nodeData_unlockOutPortData(&m_nodeData);
+      apx_nodeData_outPortDataNotify(&m_nodeData, (uint32_t) offset, (uint32_t) len);
+      return;
    }
-
-
-   ''')
+   apx_nodeData_unlockOutPortData(&m_nodeData);
+}''')
         fp.write(str(sourceFile))
 
     def _writeCallbackPrototypes(self, fp, guard):
