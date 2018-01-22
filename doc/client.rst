@@ -1,7 +1,4 @@
-Writing APX clients in Python
-==============================
+Python APX Client
+=================
 
-
-.. note::
-
-   This is just a stub, more information will be added later.
+TBD
