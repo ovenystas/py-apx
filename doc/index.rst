@@ -7,14 +7,14 @@ APX for Python
    :hidden:
    :maxdepth: 1
       
-   file
+   node
    generator
    client
    reference
    
 The APX Python module has multiple uses. Select the one you are most interesed in.
 
-- :doc:`Programmatically creating APX files </file>`
+- :doc:`Programmatically creating APX nodes </node>`
 - :doc:`Generating C source files for c-apx </generator>`
 - :doc:`Using Python as an APX client </generator>`
 
