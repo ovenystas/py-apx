@@ -75,6 +75,7 @@ Output:
    P"TestSignal1"C
    R"TestSignal2"S
 
+.. _`ref_create_from_autosar`:
 
 Creating ports from existing AUTOSAR ports
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

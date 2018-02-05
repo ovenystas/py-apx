@@ -101,6 +101,8 @@ class Node:
          self.name=swc.name
       else:
          self.name = name
+      if ws is None:
+         ws=swc.rootWS()
       for port in swc.providePorts:
          self.add_autosar_port(port, ws)
       for port in swc.requirePorts:

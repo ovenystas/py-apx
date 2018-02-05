@@ -1,4 +1,5 @@
 import autosar
+import apx
 
 ws = autosar.workspace()
 dataTypes = ws.createPackage('DataType', role='DataType')
@@ -28,4 +29,3 @@ swc.createRequirePort('EngineRunningStatus', 'EngineRunningStatus_I', initValueR
 swc.createRequirePort('VehicleSpeed', 'VehicleSpeed_I', initValueRef=constants['C_VehicleSpeed_IV'].ref)
 swc.createProvidePort('FuelLevelPercent', 'FuelLevelPercent_I', initValueRef=constants['C_FuelLevelPercent_IV'].ref)
 
-   
