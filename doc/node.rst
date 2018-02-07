@@ -128,10 +128,86 @@ APX currently supports the following integer data types:
 | L         | uint32    |  32  |   0         | 4294967295 |
 +-----------+-----------+------+-------------+------------+
 
-Example ports:
+Examples:
 
 .. code-block:: python
     
     u8_port = apx.RequirePort('U8Port','C')
     u16_port = apx.RequirePort('U16Port','S')
     u32_port = apx.RequirePort('U32Port','L')
+
+Array signatures
+^^^^^^^^^^^^^^^^
+
+You can create arrays out of integer (or record) types by appending *[n]* to the type code where n is the number of array elements.
+
+Examples:
+
+.. code-block:: python
+    
+    u8_ar_port = apx.RequirePort('U8Array','C[6]') #array of 6 uint8 elements
+    u16_ar_port = apx.RequirePort('U16Array','S[4]') #array of 4 uint16 elements
+    u32_ar_port = apx.RequirePort('U32Array','L[2]') #array of 2 uint32 elements
+
+Example Node
+------------
+
+The following APX node is just a mismatch of various automotive signals. It is purely intended as a demonstration of how to convert typical
+signal definitions into `APX Text <http://apx.readthedocs.io/en/latest/apx_text.html>`_.
+
+Data Types
+~~~~~~~~~~
+
+**BatteryVoltage_T:**
+
++--------+-----------+-----------------------------+
+| Min    | Max       | Unit / ValueTable           |
++========+===========+=============================+
+| 0      | 65535     | Volts (65535=Not Available) |
++--------+-----------+-----------------------------+
+
+.. note::
+
+    Currently there is no method to describe physical scaling and offset using APX. It might be introduced in a future version.
+
+**Date_T:**
+
++--------------+--------+-----------+----------------------------+
+| Element Name | Min    | Max       | Unit / ValueTable          |
++==============+========+===========+============================+
+| Year         | 0      | 255       | Years (255=Not Available)  |
++--------------+--------+-----------+----------------------------+
+| Month        | 1      | 13        | Months  (13=Not Available) |
++--------------+--------+-----------+----------------------------+
+| Day          | 1      | 32        | Days (32=Not Available)    |
++--------------+--------+-----------+----------------------------+
+
+**InactiveActive_T:**
+
++--------+-------+-------------------------------+
+| Min    | Max   | Unit / ValueTable             |
++========+=======+===============================+
+| 0      | 3     | 0=InactiveActive_Inactive,    |
+|        |       | 1=InactiveActive_Active,      |
+|        |       | 2=InactiveActive_Error,       |
+|        |       | 3=InactiveActive_NotAvailable |
++--------+-------+-------------------------------+
+
+Signals
+~~~~~~~
+
++----------------------+------------------+------------------+
+| Name                 | Data Type        | Init Value       |
++======================+==================+==================+
+| BatteryVoltage       | BatteryVoltage_T | 65535            |
++----------------------+------------------+------------------+
+| CurrentDate          | Date_T           | {255, 13, 32}    |
++----------------------+------------------+------------------+
+| ExteriorLightsActive | InactiveActive_T | 3                |
++----------------------+------------------+------------------+
+
+APX Node
+~~~~~~~~
+
+.. include:: examples/node_01.py
+    :code: python

@@ -203,7 +203,11 @@ class DataSignature:
       self.parent=parent      
 
    def __str__(self):
+      if self.dataElement.typeCode == REFERENCE_TYPE_CODE:
+         if hasattr(self.dataElement.typeReference,'id'):
+            return 'T[{:d}]'.format(self.dataElement.typeReference.id)
       return self.str
+      
 
    def packLen(self):
       result=0
