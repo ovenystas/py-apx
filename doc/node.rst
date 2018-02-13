@@ -39,9 +39,9 @@ Here is a simple example of an AUTOSAR SWC called **ExampleSWC**:
 .. include:: examples/autosar_01.py
     :code: python
 
-Alternatively you can load an SWC from existing XML. The section :ref:`ref_create_from_autosar` in the API reference provides examples where this is done.
+Alternatively you can load an SWC from existing XML. The section :ref:`ref_create_from_autosar` in the API reference shows examples of this.
 
-Once you have an instance of an AUTOSAR SWC you can easily turn it into an APX node using one of the following ways.
+Once you have an instance of an AUTOSAR SWC you can easily turn it into an APX node using the following code:
 
 .. code-block:: python
 
@@ -72,6 +72,7 @@ Creating the APX node
 ~~~~~~~~~~~~~~~~~~~~~~
 
 Use the Node class to create a new node with your selected node name.
+The node name shall be a unique string that isn't in use by any other APX node you aim to connect to.
 
 .. code-block:: python
 
@@ -93,18 +94,18 @@ APX ports are created using the two classes apx.RequirePort and apx.ProvidePort.
 Each of the three parameters (above) are string types:
 
 - port_name: name of the port
-- data_signature: describes its data type (see below)
-- port_attribute(s): describes 1 or more port attributes (see below)
+- data_signature: describes its data type (introduced later)
+- port_attribute(s): describes 1 or more port attributes (introduced later)
 
 .. note::
 
     The port_attribute argument is optional, you can call the RequirePort and ProvidePort classes with just 2 arguments if you should wish.
 
-Data Signatures
-~~~~~~~~~~~~~~~
+Introduction to Data Signatures
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The data signature describes the data type of the port. It is a string that can take many shapes and forms but
-most of the time it is simply a single character describing an integer data type.
+most often it is just a single character, which is code for an integer type.
 
 
 Integer data types
@@ -136,10 +137,31 @@ Examples:
     u16_port = apx.RequirePort('U16Port','S')
     u32_port = apx.RequirePort('U32Port','L')
 
-Array signatures
-^^^^^^^^^^^^^^^^
 
-You can create arrays out of integer (or record) types by appending *[n]* to the type code where n is the number of array elements.
+Adding ports to the node
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use the append method to add new ports to your APX node.
+
+Example:
+
+.. code-block:: python
+
+    import apx
+    
+    node = apx.Node('MyNode')
+    node.append(apx.ProvidePort('U8Port', 'C'))
+    node.append(apx.RequirePort('U16Port', 'S'))
+
+More about data signatures
+--------------------------
+
+Data signatures can be a lot more complex than just integer types. You can also create arrays, type references and records.
+
+Array signatures
+~~~~~~~~~~~~~~~~
+
+You can create arrays of other types (like integers) by appending *[n]* to the type code where n is the number of array elements.
 
 Examples:
 
@@ -149,16 +171,45 @@ Examples:
     u16_ar_port = apx.RequirePort('U16Array','S[4]') #array of 4 uint16 elements
     u32_ar_port = apx.RequirePort('U32Array','L[2]') #array of 2 uint32 elements
 
+Records
+~~~~~~~
+
+TBD
+
+Type References
+~~~~~~~~~~~~~~~~
+
+TBD
+
+Port Attributes
+---------------
+
+TBD
+
+Init Values
+~~~~~~~~~~~
+
+TBD
+
+Array Init Values
+^^^^^^^^^^^^^^^^^^
+
+TBD
+
+Record Init Values
+^^^^^^^^^^^^^^^^^^
+
+TBD
+
 Example Node
 ------------
 
-The following APX node is just a mismatch of various automotive signals. It is purely intended as a demonstration of how to convert typical
-signal definitions into `APX Text <http://apx.readthedocs.io/en/latest/apx_text.html>`_.
+The following APX node is purely intended as a demonstration of how to create an APX node from scratch using some automotive signal types and definitions
 
 Data Types
 ~~~~~~~~~~
 
-**BatteryVoltage_T:**
+**BatteryVoltage_T (physical type):**
 
 +--------+-----------+-----------------------------+
 | Min    | Max       | Unit / ValueTable           |
@@ -170,7 +221,7 @@ Data Types
 
     Currently there is no method to describe physical scaling and offset using APX. It might be introduced in a future version.
 
-**Date_T:**
+**Date_T (record type):**
 
 +--------------+--------+-----------+----------------------------+
 | Element Name | Min    | Max       | Unit / ValueTable          |
@@ -182,7 +233,7 @@ Data Types
 | Day          | 1      | 32        | Days (32=Not Available)    |
 +--------------+--------+-----------+----------------------------+
 
-**InactiveActive_T:**
+**InactiveActive_T (enumeration type):**
 
 +--------+-------+-------------------------------+
 | Min    | Max   | Unit / ValueTable             |
@@ -208,6 +259,14 @@ Signals
 
 APX Node
 ~~~~~~~~
+
+The following apx node contains:
+
+- 3 type definitions
+- 1 provide port
+- 2 require port
+- 3 type references
+- 3 init values (port attribute strings)
 
 .. include:: examples/node_01.py
     :code: python
