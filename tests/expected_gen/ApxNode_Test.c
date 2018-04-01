@@ -73,8 +73,8 @@ Std_ReturnType ApxNode_Read_Test_U8Port(uint8 *val)
 
 Std_ReturnType ApxNode_Read_Test_U8ARPort(uint8 *val)
 {
-   uint8 i;
    uint8 *p;
+   uint8 i;
    apx_nodeData_lockInPortData(&m_nodeData);
    p=&m_inPortdata[1];
    for(i=0;i<3;i++)
@@ -101,8 +101,8 @@ Std_ReturnType ApxNode_Read_Test_SoundRequest(SoundRequest_T *val)
 
 Std_ReturnType ApxNode_Write_Test_U16ARPort(uint16 val)
 {
-   uint8 i;
    uint8 *p;
+   uint8 i;
    apx_nodeData_lockOutPortData(&m_nodeData);
    p=&m_outPortdata[0];
    for(i=0;i<4;i++)

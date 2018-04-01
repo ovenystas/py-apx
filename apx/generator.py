@@ -330,10 +330,11 @@ class NodeGenerator:
         initializer=C.initializer(None,['(uint16)%du'%offset,'(uint16)%du'%packLen])
         if 'p' in localvar:
             code.append(C.statement(localvar['p'],indent=indent))
-        for k,v in localvar.items():
+        for k in sorted(localvar.keys()):            
             if k=='p' or k=='buf':
                 continue
             else:
+                v = localvar[k]
                 code.append(C.statement(v,indent=indent))
         if operation=='pack':
             code.append(C.statement('apx_nodeData_lockOutPortData(&m_nodeData)', indent=indent))
