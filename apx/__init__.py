@@ -12,4 +12,5 @@ from apx.client import *
 from apx.compiler import *
 from apx.vm import *
 from apx.generator import NodeGenerator, ComGenerator
+from apx.tester import *
 
