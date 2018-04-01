@@ -40,9 +40,10 @@ class NodeData():
       self.outPortDataMap = [] #length: number of provide ports
       self.inPortPrograms = [] #length: number of require ports
       self.outPortPrograms = [] #length: number of provide ports
+      self.outPortValues = [] #length: number of provide ports
       self.inPortDataFile = self._createInPortDataFile(self.node, compiler) if len(self.node.requirePorts)>0 else None
       self.outPortDataFile = self._createOutPortDataFile(self.node, compiler) if len(self.node.providePorts)>0 else None
-      self.definitionFile = self._createDefinitionFile(node.name,apx_text)
+      self.definitionFile = self._createDefinitionFile(node.name,apx_text)      
       self.vm = apx.VM()
       self.lock=threading.Lock() #the virtual machine is not thread-safe, use this lock to protect it in case users try to read/write ports from multiple threads
       if self.inPortDataFile is not None:
@@ -78,6 +79,7 @@ class NodeData():
          packLen = port.dsg.packLen()
          self.mapOutPort(port, offset, packLen)
          self.createPackProg(port, dataElement, compiler)
+         self.createOutPortValue(port)
          offset+=packLen
          if port.attr is not None and port.attr.initValue is not None:
             init_data.extend(dataElement.createInitData(port.attr.initValue))
@@ -134,12 +136,22 @@ class NodeData():
       assert(port_id == port_map.port.id)
       return self._packProvidePort(port_id, port_map.data_offset, port_map.data_len, value)
 
+   def read_provide_port(self, port_id):
+      if isinstance(port_id, apx.Port):
+         port_id = port_id.id
+      if not isinstance(port_id, int):
+         raise ValueError('port_id must be integer')
+      port_map = self.outPortDataMap[port_id]
+      assert(port_id == port_map.port.id)
+      return self.outPortValues[port_id]      
+
    def _packProvidePort(self, port_id, data_offset, data_len, value):
       program = self.outPortPrograms[port_id]
       data = bytearray(data_len)
       self.lock.acquire()
       self.vm.exec_pack_prog(program, data, 0, value)
-      self.lock.release()
+      self.outPortValues[port_id]=value
+      self.lock.release()      
       self.outPortDataFile.write(data_offset, data)
 
    def read_require_port(self, port_id):
@@ -184,3 +196,10 @@ class NodeData():
       if len(self.inPortPrograms) != port.id:
          raise RuntimeError('port id {:d} of port {} is out of sync'.format(port.id, port.name))
       self.inPortPrograms.append(program)
+   
+   def createOutPortValue(self, port):
+      #TODO: add implementation for record types
+      if port.attr is not None and port.attr.initValue is not None:
+         self.outPortValues.append(port.attr.initValue)
+      else:
+         self.outPortValues.append(0)
