@@ -37,7 +37,7 @@ class FileMap:
         return self._items[i:j].index(file) + i
    
    def insert(self, file):
-      assert(isinstance(file, apx.File))
+      #assert(isinstance(file, apx.File))
       #assign address to file
       if file.address is None:
          self._assignFileAddressDefault(file)
@@ -109,9 +109,9 @@ class FileMap:
       if (address_boundary & (address_boundary-1)) != 0 :
          raise ValueError('address_boundary must be a power of 2')
       
-      if len(self._keys)==0:
-         placement_address=start_address
-      else:
+      placement_address=start_address
+         
+      if len(self._keys)>0:
          i = bisect_left(self._keys, end_address)
          if i>=len(self._keys):            
             i=len(self._keys)-1
