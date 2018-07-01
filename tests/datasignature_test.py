@@ -412,18 +412,30 @@ class test_elem_size(unittest.TestCase):
     
     def test_reference(self):
         typeList = []
-        typeList.append(apx.DataType("TestType1", "C[8]"))
-        typeList.append(apx.DataType("TestType2", "a[18]"))
-        typeList.append(apx.DataType("TestType3", 'C'))
-        typeList.append(apx.DataType("TestType3", '{"Name"a[16]"ID"L}'))        
-        dsg = apx.DataSignature('T[3]', typeList)
-        self.assertEqual(dsg.packLen(), 20)
-        dsg = apx.DataSignature('T[2]', typeList)
-        self.assertEqual(dsg.packLen(), 1)
-        dsg = apx.DataSignature('T[1]', typeList)
-        self.assertEqual(dsg.packLen(), 18)
+        typeList.append(apx.DataType("TestType1", "C[8]"))               #0
+        typeList.append(apx.DataType("TestType2", "a[18]"))              #1
+        typeList.append(apx.DataType("TestType3", '{"Name"a[16]"ID"L}')) #2
+        typeList.append(apx.DataType("TestType3", 'C'))                  #3        
+        typeList.append(apx.DataType("TestType4", 'S'))                  #4
+        typeList.append(apx.DataType("TestType5", 'L'))                  #5
         dsg = apx.DataSignature('T[0]', typeList)
         self.assertEqual(dsg.packLen(), 8)
+        self.assertTrue(dsg.isComplexType())
+        dsg = apx.DataSignature('T[1]', typeList)
+        self.assertEqual(dsg.packLen(), 18)
+        self.assertTrue(dsg.isComplexType())
+        dsg = apx.DataSignature('T[2]', typeList)
+        self.assertEqual(dsg.packLen(), 20)
+        self.assertTrue(dsg.isComplexType())
+        dsg = apx.DataSignature('T[3]', typeList)
+        self.assertEqual(dsg.packLen(), 1)
+        self.assertFalse(dsg.isComplexType())
+        dsg = apx.DataSignature('T[4]', typeList)
+        self.assertEqual(dsg.packLen(), 2)
+        self.assertFalse(dsg.isComplexType())
+        dsg = apx.DataSignature('T[5]', typeList)
+        self.assertEqual(dsg.packLen(), 4)
+        self.assertFalse(dsg.isComplexType())
       
             
 if __name__ == '__main__':
