@@ -30,7 +30,7 @@ static const uint8_t m_inPortInitData[APX_IN_PORT_DATA_LEN]= {
 };
 
 static uint8 m_inPortdata[APX_IN_PORT_DATA_LEN];
-static uint8_t m_inPortDirtyFlags[APX_OUT_PORT_DATA_LEN];
+static uint8_t m_inPortDirtyFlags[APX_IN_PORT_DATA_LEN];
 static apx_nodeData_t m_nodeData;
 static const char *m_apxDefinitionData=
 "APX/1.2\n"
@@ -99,7 +99,7 @@ Std_ReturnType ApxNode_Read_Test_SoundRequest(SoundRequest_T *val)
    return E_OK;
 }
 
-Std_ReturnType ApxNode_Write_Test_U16ARPort(uint16 val)
+Std_ReturnType ApxNode_Write_Test_U16ARPort(uint16 *val)
 {
    uint8 *p;
    uint8 i;
@@ -110,7 +110,7 @@ Std_ReturnType ApxNode_Write_Test_U16ARPort(uint16 val)
       packLE(p,(uint32) val[i],(uint8) sizeof(uint16));
       p+=(uint8) sizeof(uint16);
    }
-   outPortData_writeCmd(0, 2);
+   outPortData_writeCmd(0, 8);
    return E_OK;
 }
 

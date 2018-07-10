@@ -183,7 +183,7 @@ class NodeGenerator:
         for port in node.providePorts:
             is_pointer=False
             func = C.function("ApxNode_Write_%s_%s"%(name,port.name),"Std_ReturnType")
-            if port.dsg.isComplexType(node.dataTypes) and not port.dsg.isArray(node.dataTypes):
+            if port.dsg.isComplexType(node.dataTypes):
                 is_pointer=True
             func.add_arg(C.variable('val',port.dsg.ctypename(node.dataTypes),pointer=is_pointer))
             packLen=port.dsg.packLen()
@@ -312,6 +312,7 @@ class NodeGenerator:
                 block=C.block(indent=indent)
                 indent+=indentStep
                 packLen=self.genPackUnpackInteger(block, buf, operation, valname+'[%s]'%localvar['loopVar'].name, dataElement, localvar, offset, indent)
+                packLen*=dataElement.arrayLen
                 indent-=indentStep
                 code.append(block)
         else:
@@ -327,7 +328,7 @@ class NodeGenerator:
 
         codeBlock=C.sequence()
         packLen=self.genPackUnpackItem(codeBlock, buf, operation, val, dsg, localvar, offset, indent, indentStep)
-        initializer=C.initializer(None,['(uint16)%du'%offset,'(uint16)%du'%packLen])
+        #initializer=C.initializer(None,['(uint16)%du'%offset,'(uint16)%du'%packLen])
         if 'p' in localvar:
             code.append(C.statement(localvar['p'],indent=indent))
         for k in sorted(localvar.keys()):            
