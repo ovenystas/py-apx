@@ -60,7 +60,7 @@ def _getIntegerTypeCode(dataType):
       elif bits <=64:
          return 'U'
    elif dataType.minVal<0:
-      bits = _calcIntTypeLen(dataType)      
+      bits = _calcIntTypeLen(dataType)
       if bits <=8:
          if (dataType.minval>-128) or dataType.maxVal<127:
             return 'c(%d,%d)'%(dataType.minval,dataType.maxVal)
@@ -89,7 +89,7 @@ def _calcIntTypeLen(dataType):
    same as _calcUIntTypeLen but for signed integers
    """
    if isinstance(dataType,autosar.datatype.IntegerDataType):
-      return int(math.ceil(math.log(abs(dataType.maxVal),2)))+1            
+      return int(math.ceil(math.log(abs(dataType.maxVal),2)))+1
    return None
 
 def _derive_c_typename(dataElement):
@@ -126,10 +126,10 @@ class Port:
          return '%s"%s"%s:%s'%(self.portType, self.name, dsg, attr)
       else:
          return '%s"%s"%s'%(self.portType, self.name, str(self.dsg))
-   
+
    def resolve_type(self, typeList):
       return self.dsg.resolve_data_element(typeList)
-   
+
    @property
    def data_element(self):
       data_element = self.dsg.dataElement
@@ -147,7 +147,7 @@ class Port:
          return None
       else:
          return self.attr.initValue
-   
+
 class RequirePort(Port):
    """
    APX require port
@@ -200,14 +200,14 @@ class DataSignature:
          self.str=None
       else:
          raise NotImplementedError(type(dsg))
-      self.parent=parent      
+      self.parent=parent
 
    def __str__(self):
       if self.dataElement.typeCode == REFERENCE_TYPE_CODE:
          if hasattr(self.dataElement.typeReference,'id'):
             return 'T[{:d}]'.format(self.dataElement.typeReference.id)
       return self.str
-      
+
 
    def packLen(self):
       result=0
@@ -249,8 +249,8 @@ class DataSignature:
                i = typeCodes.index(dataElement.typeCode)
          except ValueError:
                raise NotImplementedError(dataElement.typeCode)
-         elemSize =  typeSizes[i]  
-      
+         elemSize =  typeSizes[i]
+
       if dataElement.isArray():
          return elemSize*dataElement.arrayLen
       else:
@@ -267,7 +267,7 @@ class DataSignature:
          return data_type.name
       else:
          return _derive_c_typename(self.dataElement)
-   
+
    def isComplexType(self, typeList = None):
       return self.dataElement.isComplexType(typeList)
 
@@ -286,7 +286,7 @@ class DataSignature:
       while len(remain)>0:
          (name,remain)=match_pair(remain,'"','"')
          if len(remain)>0:
-            (childElement,remain)=DataSignature.parseDataSignature(remain, typeList)            
+            (childElement,remain)=DataSignature.parseDataSignature(remain, typeList)
             if childElement is None:
                if remain[0] == '}':
                   return (recordElement,remain[1:])
@@ -294,7 +294,7 @@ class DataSignature:
                   raise ParseError('syntax error while parsing record')
             else:
                assert(isinstance(childElement, DataElement))
-               childElement.name = name               
+               childElement.name = name
                recordElement.elements.append(childElement)
       raise ParseError("Missing '}' in data signature")
 
@@ -306,7 +306,7 @@ class DataSignature:
       minVal = int(values[0])
       maxVal = int(values[1])
       return (minVal, maxVal)
-      
+
 
    @staticmethod
    def parseDataSignature(s, typeList=None):
@@ -373,9 +373,9 @@ class DataSignature:
             return dataType
       else:
          raise ValueError('No data type found with name {}'.format(name))
-      
-      
-   
+
+
+
 
 class DataElement:
    """
@@ -383,53 +383,55 @@ class DataElement:
    """
    def __init__(self, name=None, typeCode = INVALID_TYPE_CODE, minVal = None, maxVal = None, arrayLen = None, elements = None, reference=None):
       self.name = name
-      if reference is not None:         
+      self.strNullTerminator = True #TODO: make this configurable in the future
+      if reference is not None:
          self.typeCode = REFERENCE_TYPE_CODE
          assert(isinstance(reference, (int, str, DataType)))
          self.typeReference = reference
          self.minVal = None
          self.maxVal = None
          self.arrayLen = None
-      else:      
+      else:
          self.typeCode = typeCode
          self.minVal = minVal
          self.maxVal = maxVal
          self.arrayLen = arrayLen
          self.typeReference = None
-      
+
+
       if elements is not None:
          self.elements = list(elements)
       else:
          self.elements = None
-   
+
    @property
    def arrayLen(self):
       return self._arrayLen
-   
+
    @arrayLen.setter
    def arrayLen(self, value):
-      if value is not None:            
+      if value is not None:
          if value < 0:
             raise ValueError('invalid length: %s'%value)
          self._arrayLen = value
       else:
           self._arrayLen = None
-   
+
    def isArray(self, typeList = None):
       dataElement = self.resolve_data_element(typeList)
       return dataElement.arrayLen is not None
-      
+
    def isRecord(self, typeList = None):
       dataElement = self.resolve_data_element(typeList)
       return dataElement.typeCode == RECORD_TYPE_CODE
 
    def isComplexType(self, typeList = None):
       return self.isArray() or self.isRecord()
-   
+
    @property
    def isReference(self):
       return self.typeCode == REFERENCE_TYPE_CODE
-      
+
    @classmethod
    def UInt8(cls, name=None, minVal = None, maxVal = None, arrayLen = None):
       return cls(name, UINT8_TYPE_CODE, minVal, maxVal, arrayLen)
@@ -469,9 +471,9 @@ class DataElement:
 
    @classmethod
    def TypeReference(cls, reference, name=None):
-      self = cls(name, reference = reference)      
+      self = cls(name, reference = reference)
       return self
-   
+
    def append(self, elem):
       if self.typeCode == RECORD_TYPE_CODE:
          self.elements.append(elem)
@@ -598,7 +600,7 @@ class InitValue:
    @property
    def isString(self):
       return isinstance(self.value, str)
-   
+
    @classmethod
    def Int(cls, value):
       return cls(VTYPE_SCALAR, int(value))
@@ -610,7 +612,7 @@ class InitValue:
    @classmethod
    def List(cls):
       return cls(VTYPE_LIST)
-      
+
 
 class PortAttribute:
    """
@@ -718,13 +720,13 @@ class AutosarRequirePort(AutosarPort):
       super().__init__(name,typeId)
       if (ws is not None) and (port is not None):
          self.attr = self._calcAttribute(ws,port)
-   
+
    def __str__(self):
       if self.attr is not None:
          return 'R"%s"T[%d]:%s'%(self.name,self.typeId,self.attr)
       else:
          return 'R"%s"T[%d]'%(self.name,self.typeId)
-   
+
    def mirror(self):
       other = AutosarProvidePort(self.name, self.typeId)
       other.attr = self.attr
@@ -735,7 +737,7 @@ class AutosarProvidePort(AutosarPort):
       super().__init__(name,typeId)
       if (ws is not None) and (port is not None):
          self.attr = self._calcAttribute(ws,port)
-   
+
    def __str__(self):
       if self.attr is not None:
          return 'P"%s"T[%d]:%s'%(self.name,self.typeId,self.attr)
@@ -755,14 +757,14 @@ class AutosarDataType(DataType):
       if typeSemantics is not None:
          self.attr = self._calcAttribute(dataType,typeSemantics)
       else:
-         self.attr=None      
-   
+         self.attr=None
+
    def __str__(self):
       if self.attr is not None:
          return 'T"%s"%s:%s'%(self.name,self.dsg,self.attr)
       else:
          return 'T"%s"%s'%(self.name,self.dsg)
-   
+
    def _calcAttribute(self,dataType,typeSemantics):
       if isinstance(typeSemantics,autosar.datatype.CompuMethodConst):
          values=[]
@@ -773,10 +775,10 @@ class AutosarDataType(DataType):
          return "VT(%s)"%v
       return None
 
-   def _calcDataSignature(self,ws,dataType):      
+   def _calcDataSignature(self,ws,dataType):
       if isinstance(dataType,autosar.datatype.BooleanDataType):
          return 'C(0,1)'
-      if isinstance(dataType,autosar.datatype.IntegerDataType):      
+      if isinstance(dataType,autosar.datatype.IntegerDataType):
          return _getIntegerTypeCode(dataType)
       elif isinstance(dataType,autosar.datatype.ArrayDataType):
          typeCode = _getIntegerTypeCode(typeData.find(dataType['typeRef']))
@@ -787,7 +789,7 @@ class AutosarDataType(DataType):
       elif isinstance(dataType,autosar.datatype.StringDataType):
          typeCode = 'a'
          if typeCode != None:
-            return "%s[%d]"%(typeCode,int(dataType.length)+1)            
+            return "%s[%d]"%(typeCode,int(dataType.length)+1)
       elif isinstance(dataType,autosar.datatype.RecordDataType):
          result="{"
          for elem in dataType.elements:
@@ -797,7 +799,7 @@ class AutosarDataType(DataType):
             childType = ws.find(elem.typeRef, role="DataType")
             if childType is None:
                raise ValueError("invalid type reference: %s"%elem.typeRef)
-            result+='"%s"%s'%(elem.name, self._calcDataSignature(ws, childType))            
+            result+='"%s"%s'%(elem.name, self._calcDataSignature(ws, childType))
          result+="}"
          return result
       else: raise Exception('unhandled data type: %s'%type(dataType))

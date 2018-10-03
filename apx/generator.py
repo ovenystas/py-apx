@@ -259,24 +259,35 @@ class NodeGenerator:
         if (dataElement.isComplexType()):
             #raise NotImplemented('complex types not yet fully supported')
             if dataElement.typeCode == apx.STRING_TYPE_CODE:
+                if dataElement.strNullTerminator:
+                    strDataLen = dataElement.arrayLen-1 #reserve one byte for null-terminator
+                else:
+                    strDataLen = dataElement.arrayLen #Allow entire array for data
                 if 'bufptr' in localvar:
                     #use relative addressing using 'p' pointer
                     if operation == 'pack':
-                        if dataElement.arrayLen>0:
-                            code.append(C.statement('memcpy(%s,%s,%d)'%(localvar['bufptr'].name,valname, dataElement.arrayLen),indent=indent))
-                        code.append(C.statement("%s[%d]='\\0'"%(localvar['bufptr'].name, dataElement.arrayLen),indent=indent))
+                        code.append(C.statement('memcpy(%s,%s,%d)'%(localvar['bufptr'].name,valname, strDataLen),indent=indent))
+                        if dataElement.strNullTerminator:
+                            code.append(C.statement("%s[%d]='\\0'"%(localvar['bufptr'].name, strDataLen),indent=indent))
                     else:
-                        code.append(C.statement('memcpy(%s,%s,%d)'%(valname,localvar['bufptr'].name,dataElement.arrayLen),indent=indent))
+                        code.append(C.statement('memcpy(%s,%s,%d)'%(valname, localvar['bufptr'].name, strDataLen), indent=indent))
+                        #TODO: add support for disabling/enabling usage of null-terminator in NodeGenerator data unpacking
+#                        if dataElement.strNullTerminator:
+#                            code.append(C.statement("%s[%d]='\\0'"%(localvar['bufptr'].name, strDataLen), indent=indent))
                     code.append(C.statement('%s+=%d'%(localvar['bufptr'].name, dataElement.arrayLen),indent=indent))
                 else:
                     #use absolute addressing using buf variable and offset
                     if operation == 'pack':
-                        if dataElement.arrayLen>0:
-                            code.append(C.statement('memcpy(&%s[%d],%s,%d)'%(buf.name,offset,valname, dataElement.arrayLen),indent=indent))
-                        code.append(C.statement("%s[%d]='\\0'"%(buf.name,offset+dataElement.arrayLen),indent=indent))
+                        code.append(C.statement('memcpy(&%s[%d],%s,%d)'%(buf.name,offset,valname, dataElement.arrayLen),indent=indent))
+                        if dataElement.strNullTerminator:
+                            code.append(C.statement("%s[%d]='\\0'"%(buf.name,offset+dataElement.arrayLen),indent=indent))
                     else:
-                        code.append(C.statement('memcpy(%s,&%s[%d],%d)'%(valname,buf.name,offset, dataElement.arrayLen),indent=indent))
+                        code.append(C.statement('memcpy(%s,&%s[%d],%d)'%(valname,buf.name,offset, strDataLen),indent=indent))
+                        #TODO: add support for disabling/enabling usage of null-terminator in NodeGenerator data unpacking
+#                        if dataElement.strNullTerminator:
+#                            code.append(C.statement("%s[%d]='\\0'"%(buf.name, offset+strDataLen),indent=indent))
                 packLen=dataElement.arrayLen
+
             elif dataElement.typeCode==apx.RECORD_TYPE_CODE:
                 if 'bufptr' not in localvar:
                     localvar['bufptr']=C.variable('p','uint8',pointer=True)
@@ -331,7 +342,7 @@ class NodeGenerator:
         #initializer=C.initializer(None,['(uint16)%du'%offset,'(uint16)%du'%packLen])
         if 'p' in localvar:
             code.append(C.statement(localvar['p'],indent=indent))
-        for k in sorted(localvar.keys()):            
+        for k in sorted(localvar.keys()):
             if k=='p' or k=='buf':
                 continue
             else:
