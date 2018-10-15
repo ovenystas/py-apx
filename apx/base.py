@@ -672,7 +672,7 @@ class PortAttribute:
    """
    Port attributes are attributes declared on a line starting with either 'R' or 'P'
    """
-   _p2=re.compile(r'0x([0-9A-Fa-f]+)|(\d+)|"([^"]*)"')
+   _p2=re.compile(r'0x([0-9A-Fa-f]+)|(-?\d+)|"([^"]*)"')
    _p3=re.compile(r'\[(\d+)\]')
 
    def __init__(self,text):
