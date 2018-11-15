@@ -201,22 +201,25 @@ class Node:
         self.providePorts.append(port)
         return port
 
-    def save_apx(self, output_dir='.', normalized=False):
+    def save_apx(self, output_dir='.', output_file = None, normalized=False):
         """
         Saves node in the .apx file format
         If normalized is True it uses the traditional type reference by ID.
         If normalized is False it uses the newer type reference by name which is not fully supported yet by all clients.
+        If output_file is None (default) it generates a file based on the node name.
+        If output_file is None it generates the file in output_dir (defaults to current directory)
         """
         if not self.isFinalized:
             self.finalize_sorted()
-        file_name = os.path.normpath(os.path.join(output_dir, self.name+'.apx'))
-        with open(file_name, "w", newline='\n') as fp:
+        if output_file is None:
+            output_file = os.path.normpath(os.path.join(output_dir, self.name+'.apx'))
+        with open(output_file, "w", newline='\n') as fp:
             fp.write("APX/1.2\n") #APX Text header
             self.write(fp, normalized)
             fp.write("\n") #Add extra newline at end of file
 
-    def save_apx_normalized(self, output_dir='.'):
-        self.save_apx(output_dir, True)
+    def save_apx_normalized(self, output_dir='.', output_file = None):
+        self.save_apx(output_dir, output_file, True)
 
     def dumps(self, normalized=False):
       lines = ["APX/1.2"]
@@ -299,7 +302,6 @@ class Node:
         self.append(to_port)
         return to_port
 
-
     def add_data_type_from_node(self, from_node, from_data_type):
         """
         Attempts to clone the data type from other node to this node
@@ -322,7 +324,6 @@ class Node:
         to_data_type = from_data_type.clone()
         self.append(to_data_type)
         return to_data_type
-
 
     def find(self, name):
         """
@@ -375,9 +376,9 @@ class Node:
         for existing_port in self.providePorts+self.requirePorts:
             if existing_port.name == new_port.name:
                 if isinstance(existing_port, apx.RequirePort) and isinstance(new_port, apx.ProvidePort):
-                    raise ValueError("Cannot add provide-port with same name. Port '{}' already exists as require-port.")
+                    raise ValueError("Cannot add provide-port with same name. Port '{}' already exists as require-port.".format(new_port.name))
                 elif isinstance(existing_port, apx.ProvidePort) and isinstance(new_port, apx.RequirePort):
-                    raise ValueError("Cannot add require-port with same name. Port '{}' already exists as provide-port.")
+                    raise ValueError("Cannot add require-port with same name. Port '{}' already exists as provide-port.".format(new_port.name))
                 else:
                     self._verify_ports_are_equal(existing_port, new_port)
                     return existing_port
