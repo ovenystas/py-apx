@@ -113,10 +113,15 @@ Example::
          node.append(autosar_port)
    
    
-.. py:method :: Node.write(file):
+.. py:method :: Node.save_apx(self, output_dir='.', output_file = None, normalized=False):
 
-Writes the APX node as APX Text into the file object. The file object must be an open file with write permission.
-Normal user's should use the write method in the Context object instead of using this method.
+Saves the APX node as an .apx file. Normally the file name matches the name of the node but it can be user-overriden using argumens.
+
+**Optional Arguments:**
+
+* output_dir: The directory where to output the file
+* output_file: The name of the file to save into (Defaults to self.name+'.apx')
+* normalized: Saves the APX file in normalized format.
 
 .. py:method :: Node.mirror(name=None):
 
@@ -166,6 +171,31 @@ Example::
 
    node = apx.Node(swc.name)
    node.import_autosar_swc(swc, ws)
+
+.. py:method :: Node.extend(self, other_node)
+
+Copies all port from other_node and adds them to this node.
+This is the same as looping over all ports in other_node and calling the add_port_from_node method for each item found.
+
+.. py:method :: Node.add_port_from_node(self, from_node, from_port, ignore_duplicates=False):
+
+Attempts to clone from_port from the other APX node (from_node). It also attempts to copy any data types associated with this port.
+
+**Arguments:**
+
+   * from_node: The APX node you want to copy from
+   * from_port: The APX port you want to copy (must belong to from_node)
+   
+**Optional arguments:**
+
+   * ignore_duplicates: When True it ignores data types and ports with the same name as items already in self. When set to False it generates an error if any duplicates are found.
+
+
+.. py:method :: Node.add_data_type_from_node(self, from_node, from_data_type):
+
+Same as Node.add_port_from_node but attempts to copy the data type (from_data_type).
+Note that you generally don't need to call this method manually as it is automatically called during port copy stage.
+
 
 RequirePort
 -----------
@@ -243,6 +273,8 @@ Context
 .. py:class :: Context()
 
    The APX context is a container for one or more APX nodes.
+
+.. note :: The Context class is deprecated since v0.3.0. Use the new method Node.save_apx instead.
 
 Example::
 

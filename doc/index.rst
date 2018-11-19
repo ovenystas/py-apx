@@ -4,7 +4,7 @@ APX for Python
 ==============
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
       
    node
    generator

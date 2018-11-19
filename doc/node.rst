@@ -137,6 +137,25 @@ Examples:
     u16_port = apx.RequirePort('U16Port','S')
     u32_port = apx.RequirePort('U32Port','L')
 
+String data types
+^^^^^^^^^^^^^^^^^
+
+APX supports strings by declaring arrays of characters.
+
++-----------+-----------+------+-------------+------------+
+| Type Code | Type Name | Bits | Min         | Max        |
++===========+===========+======+=============+============+
+| a         | string    |  8   |  0          | 255        |
++-----------+-----------+------+-------------+------------+
+
+Examples:
+
+.. code-block:: python
+    
+    str1_port = apx.RequirePort('Str1','a[20]') #A string with max-length 20
+    str2_port = apx.RequirePort('Str2','a[100]') #A string with max-length 100
+
+In a future version of APX the z-type character will be introduced to better distuingish between strings that reserve a byte for null-terminating character vs. those who do not.
 
 Adding ports to the node
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -166,7 +185,7 @@ You can create arrays of other types (like integers) by appending *[n]* to the t
 Examples:
 
 .. code-block:: python
-    
+        
     u8_ar_port = apx.RequirePort('U8Array','C[6]') #array of 6 uint8 elements
     u16_ar_port = apx.RequirePort('U16Array','S[4]') #array of 4 uint16 elements
     u32_ar_port = apx.RequirePort('U32Array','L[2]') #array of 2 uint32 elements
@@ -174,7 +193,17 @@ Examples:
 Records
 ~~~~~~~
 
-TBD
+Records are data types that contains multiple named fields. Records are sometimes known as struct (or structures) in some programming languages.
+
+Records are defined within two brace characters '{}'. Field names always comes first and is always a string literal (enclosed by '"' characters).
+Immediately following the field name comes the data type, this can be any integer or string type code or for that matter another record definition.
+
+Examples:
+
+.. code-block:: python
+    
+    user_data_port = apx.RequirePort('UserData','{"UserName"a[100]"UserId"L}') #A record which has length 104 bytes and two fields
+    rectangle_port = apx.RequirePort('Rectangle', '{"From"{"x"L"y"L}"To"{"x"L"y"L}}') # A record containing two sub-records.
 
 Type References
 ~~~~~~~~~~~~~~~~
