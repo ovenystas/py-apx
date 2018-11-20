@@ -222,11 +222,11 @@ class Node:
         self.save_apx(output_dir, output_file, True)
 
     def dumps(self, normalized=False):
-      lines = ["APX/1.2"]
-      for node in self.nodes:
-         lines.extend(self.lines(normalized))
-      text = '\n'.join(lines)+'\n'
-      return text
+        if not self.isFinalized:
+            self.finalize_sorted()
+        lines = self.lines(normalized)
+        text = 'APX/1.2\n'+'\n'.join(lines)+'\n'
+        return text
 
     def dumps_normalized(self):
         return self.dumps(True)
@@ -245,7 +245,7 @@ class Node:
 
     def lines(self, normalized=False):
         """
-        returns context as list of strings (one line at a time)
+        returns node as list of strings (one line at a time)
         """
         lines = ['N"%s"'%self.name]
         for dataType in self.dataTypes:
