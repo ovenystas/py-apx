@@ -296,9 +296,10 @@ class Node:
                 raise RunTimeError('Node.finalize() method must be called before this method can be used')
             to_data_type = self.find(from_data_type.name)
             if to_data_type is None:
-                self.add_data_type_from_node(from_node, from_data_type)
+                to_data_type = self.add_data_type_from_node(from_node, from_data_type)
             else:
                 self._verify_data_types_are_equal(to_data_type, from_data_type)
+        to_port.dsg.dataElement.typeReference = to_data_type
         self.append(to_port)
         return to_port
 
@@ -357,8 +358,7 @@ class Node:
     def finalize(self, sort=False):
         if not self.isFinalized:
             self.resolve_types()
-            if sort:
-                self._sort_elements()
+            self._sort_elements(sort)
             self._set_type_ids()
             self.isFinalized = True
             return self
@@ -390,14 +390,15 @@ class Node:
         if existing_port_signature != new_port_signature:
             raise ValueError("Port '{}' already exist but with different signature\nExpected: {}\nGot: {}".format(existing_port.name, existing_port_signature, new_port_signature))
 
-    def _sort_elements(self):
+    def _sort_elements(self, sort_all):
         kfunc = lambda x: x.name
         if len(self.dataTypes) > 0:
             self.dataTypes = sorted(self.dataTypes, key=kfunc)
-        if len(self.requirePorts) > 0:
-            self.requirePorts = sorted(self.requirePorts, key=kfunc)
-        if len(self.providePorts) > 0:
-            self.providePorts = sorted(self.providePorts, key=kfunc)
+        if sort_all:
+            if len(self.requirePorts) > 0:
+                self.requirePorts = sorted(self.requirePorts, key=kfunc)
+            if len(self.providePorts) > 0:
+                self.providePorts = sorted(self.providePorts, key=kfunc)
 
     def _set_type_ids(self):
         for i,data_type in enumerate(self.dataTypes):
