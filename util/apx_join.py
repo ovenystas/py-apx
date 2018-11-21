@@ -6,7 +6,7 @@ if __name__ == '__main__':
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument('input_files',  nargs='+', help='List of APX files')
     arg_parser.add_argument('-n', '--name', help='Name of the new APX node', required=True)
-    arg_parser.add_argument('--unsorted', help='Name of the new APX node', action='store_true', default=False)
+    arg_parser.add_argument('--sorted', help='Name of the new APX node', action='store_true', default=False)
     arg_parser.add_argument('--normalized', help='Forces APX to be generated in normalized form', action='store_true', default=False)
 
     args = arg_parser.parse_args()
@@ -19,6 +19,5 @@ if __name__ == '__main__':
         apx_node = apx.Node(args.name)
         for other_node in node_list:
             apx_node.extend(other_node)
-    if args.unsorted:
-        apx_node.finalize(sort=False)
+    apx_node.finalize(sort=args.sorted)
     apx_node.save_apx(normalized=args.normalized)
