@@ -299,7 +299,7 @@ class Node:
                 to_data_type = self.add_data_type_from_node(from_node, from_data_type)
             else:
                 self._verify_data_types_are_equal(to_data_type, from_data_type)
-        to_port.dsg.dataElement.typeReference = to_data_type
+            to_port.dsg.dataElement.typeReference = to_data_type
         self.append(to_port)
         return to_port
 
