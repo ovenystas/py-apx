@@ -29,7 +29,7 @@ def create_apx_node_from_file_name(file_name, default_name):
         node_name = os.path.basename(file_name)
         if '.apx' in node_name:
             node_name = os.path.splitext(node_name)[0]
-    return apx.Node(node_name)    
+    return apx.Node(node_name)
 
 if __name__ == '__main__':
     arg_parser = argparse.ArgumentParser()
@@ -40,26 +40,27 @@ if __name__ == '__main__':
     arg_parser.add_argument('--head_name', help='Force new name of head APX node', default='Head')
     arg_parser.add_argument('--tail_name', help='Force new name of head APX node', default='Tail')
     arg_parser.add_argument('--file', help='Read port names from file instead', default=None)
-    arg_parser.add_argument('--sorted', help='Name of the new APX node', action='store_true', default=False)
-    
+    arg_parser.add_argument('--sort', help='Name of the new APX node', action='store_true', default=False)
+    arg_parser.add_argument('--mirror', help='Forces output of head and tail to be mirrored', action='store_true', default=False)
+
 
     args = arg_parser.parse_args()
     if args.file is None and len(args.port_names)==0:
         arg_parser.print_help()
         sys.exit(1)
-    
+
     head_node = create_apx_node_from_file_name(args.head, args.head_name)
     if args.tail is not None:
-        tail_node = create_apx_node_from_file_name(args.tail, args.tail_name)        
+        tail_node = create_apx_node_from_file_name(args.tail, args.tail_name)
     else:
         tail_node = None
     source_node = apx.Parser().parse(args.input_file)
-    
+
     if args.file is not None:
         port_names = parse_lines_in_file(args.file)
     else:
         port_names = args.port_names
-    
+
     processed = set()
     for name in port_names:
         source_port = source_node.find(name)
@@ -67,18 +68,22 @@ if __name__ == '__main__':
             processed.add(source_port.name)
             head_node.add_port_from_node(source_node, source_port)
 
-    head_node.finalize(args.sorted)
-    if args.head is not None:        
+    if args.mirror:
+        head_node=head_node.mirror()
+    head_node.finalize(args.sort)
+    if args.head is not None:
         head_node.save_apx(output_file=args.head, normalized=True)
     else:
         print(head_node.dumps(normalized=True))
-    
+
     if tail_node is not None:
-        head_node.finalize(args.sorted)
+        if args.mirror:
+            tail_node=tail_node.mirror()
+        head_node.finalize(args.sort)
         for source_port in source_node.providePorts+source_node.requirePorts:
             if source_port.name not in processed:
                 tail_node.add_port_from_node(source_node, source_port)
         tail_node.save_apx(output_file=args.tail, normalized=True)
-    
-    
-    
+
+
+
