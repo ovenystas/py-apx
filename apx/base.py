@@ -304,7 +304,8 @@ class DataSignature:
       return self.dataElement.createInitData(initValue)
 
    def resolve_data_element(self, typeList = None):
-      return self.dataElement.resolve_type(typeList)
+      self.dataElement.resolve_type(typeList)
+      return self.dataElement.resolve_data_element()
 
    @staticmethod
    def _parseRecordSignature(remain, typeList):
@@ -359,7 +360,7 @@ class DataSignature:
          typeCodeInt = [UINT8_TYPE_CODE, UINT16_TYPE_CODE, UINT32_TYPE_CODE, UINT64_TYPE_CODE,
                      SINT8_TYPE_CODE, SINT16_TYPE_CODE, SINT32_TYPE_CODE, SINT64_TYPE_CODE,
                      STRING_TYPE_CODE]
-         
+
          try:
             i = typeCodesChar.index(c)
          except ValueError:
@@ -371,7 +372,7 @@ class DataSignature:
                   raise ParseError("Expecting ')' near: "+remain)
                (minVal,maxVal) = DataSignature._parseExtendedTypeCode(data)
          else:
-            (minVal,maxVal) = (None, None)            
+            (minVal,maxVal) = (None, None)
          if (len(remain)>0) and (remain[0]=='['):
                (value,remain)=match_pair(remain[0:],'[',']')
                if value is None:
@@ -421,7 +422,7 @@ class DataElement:
                      -128, -32768, -2147483648, None, #python has issues with 64-bit integer literals, ignore for now
                      0]
       typeMaxVal = [255, 65535, 0xFFFFFFFF, None, #python has issues with 64-bit integer literals, ignore for now
-                     127, 32767, 2147483647, None,                     
+                     127, 32767, 2147483647, None,
                      255]
       if reference is not None:
          self.typeCode = REFERENCE_TYPE_CODE
@@ -434,9 +435,9 @@ class DataElement:
          self.typeCode = typeCode
          self.minVal = minVal
          self.maxVal = maxVal
-         if typeCode < RECORD_TYPE_CODE:         
+         if typeCode < RECORD_TYPE_CODE:
             self.typeMinVal = typeMinVal[typeCode] #this can be used in case user hasn't specifically set self.minVal
-            self.typeMaxVal = typeMaxVal[typeCode] #this can be used in case user hasn't specifically set self.maxVal         
+            self.typeMaxVal = typeMaxVal[typeCode] #this can be used in case user hasn't specifically set self.maxVal
          self.arrayLen = arrayLen
          self.typeReference = None
 
@@ -473,7 +474,7 @@ class DataElement:
    @property
    def isReference(self):
       return self.typeCode == REFERENCE_TYPE_CODE
-   
+
    @property
    def minValWithDefault(self):
       if self.minVal is not None:
@@ -567,7 +568,9 @@ class DataElement:
       Updates internal type references to type objects
       """
       if self.typeCode == REFERENCE_TYPE_CODE:
-         if typeList is not None:
+         if isinstance(self.typeReference, DataType):
+            return self.typeReference
+         elif typeList is not None:
             if isinstance(self.typeReference, int):
                obj=typeList[self.typeReference]
             elif isinstance(self.typeReference, str):
@@ -787,7 +790,7 @@ class TypeAttribute:
                   self.valueTable.append(name)
          else:
             raise ParseError
-    
+
    def __str__(self):
       return self.str
 
@@ -858,7 +861,7 @@ class AutosarDataType(DataType):
             if elem.lowerLimit==elem.upperLimit:
                values.append(elem.textValue)
             else:
-               num_items = (elem.upperLimit+1)-elem.lowerLimit               
+               num_items = (elem.upperLimit+1)-elem.lowerLimit
                values.extend([elem.textValue+str(i) for i in range(1, num_items+1)])
          v=','.join(['"%s"'%x for x in values])
          return "VT(%s)"%v
