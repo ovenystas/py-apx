@@ -10,10 +10,6 @@ from collections import namedtuple
 TypeInfo = namedtuple('TypeInfo', ['variable_name', 'type_name', 'array_len'])
 
 
-def _get_key_variable_name(type_info):
-    return type_info.variable_name
-
-
 def _genCommentHeader(comment):
     lines = []
     lines.append(C.line('//////////////////////////////////////////////////////////////////////////////'))
